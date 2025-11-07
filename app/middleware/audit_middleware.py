@@ -1,28 +1,17 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
-from app.models.audit_log import AuditLog
 from app.core.db import AsyncSessionLocal
-from app.api.deps import get_current_user
-
+from app.models.audit_log import AuditLog
 class AuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
-        if request.url.path.startswith("/docs") or request.url.path.startswith("/openapi"):
-            return response
-        user_id = None
         try:
-            # Try header-based; if not possible, keep None
-            from fastapi import Depends
-            # In middleware we don't have Depends; skip strict auth re-check
-        except:
+            async with AsyncSessionLocal() as db:
+                uid = getattr(getattr(request, "state", object()), "user_id", None)
+                cid = getattr(getattr(request, "state", object()), "company_id", None)
+                log = AuditLog(user_id=uid, company_id=cid, action=f"HTTP {request.method}", endpoint=request.url.path, method=request.method, ip=(request.client.host if request.client else "-"))
+                db.add(log); await db.commit()
+        except Exception:
             pass
-        async with AsyncSessionLocal() as session:
-            entry = AuditLog(
-                user_id=user_id,
-                endpoint=str(request.url.path),
-                method=request.method,
-                ip=request.client.host if request.client else "-"
-            )
-            session.add(entry)
-            await session.commit()
         return response
+

@@ -1,19 +1,27 @@
-# Taty Store API (FastAPI)
-- Autenticação JWT + RBAC (Administrador, Vendedor)
-- Admin auto: admin@local / admin@2025
-- Recuperação de senha (email) + templates
-- Anti-brute-force + alerta de segurança + captcha inteligente
-- Auditoria de requisições
-- Produtos, Clientes, Vendas, Itens, Parcelas
-- MinIO (S3) para uploads
-- Jobs: parcelas vencidas + refresh de materialized views
-- Relatórios otimizados (materialized view)
-
+# Taty Store API (FastAPI) — Multi-tenant por caminho
+- Isolamento por empresa via `/{company_slug}/api/v1/...`
+- Se usuário tenta outra empresa → **404 Not Found**
+- RBAC com roles/permissions (Administrador, Vendedor, etc.)
+- Rate limit **por empresa** (SlowAPI)
+- Auditoria em banco + alertas por e-mail
+- Uploads por empresa:
+  - `uploads/<slug>/products/`
+  - `uploads/<slug>/customers/`
 ## Rodar
-```
+```bash
 cp .env.example .env
 docker compose up -d --build
-# docs: http://localhost:8000/docs
-# minio: http://localhost:9001  (minio / minio123)
 ```
-# tatystore-backend
+Docs: http://localhost:8000/taty/api/v1/docs
+Admin inicial (empresa `taty`): `admin@local` / `admin@2025`
+
+
+
+## Relatórios (Avançado)
+Endpoints:
+- `/{company_slug}/api/v1/reports/dash/overview`
+- `/{company_slug}/api/v1/reports/dash/sales-by-day?days=30`
+- `/{company_slug}/api/v1/reports/dash/top-products?limit=5`
+- `/{company_slug}/api/v1/reports/dash/payment-method-share`
+- `/{company_slug}/api/v1/reports/dash/overdue-customers`
+- `/{company_slug}/api/v1/reports/dash/low-stock?threshold=5`
