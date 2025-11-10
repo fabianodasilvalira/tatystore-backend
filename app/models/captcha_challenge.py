@@ -2,7 +2,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy import DateTime, String
 from datetime import datetime, timezone, timedelta
-from app.core.db import Base
+from app.core.database import Base
 import uuid, random
 
 class CaptchaChallenge(Base):

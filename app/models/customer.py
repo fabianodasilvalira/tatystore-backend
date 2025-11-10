@@ -1,20 +1,32 @@
-from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import String, Text, ForeignKey, Date
-from app.core.db import Base
-from app.models.common import pk_uuid, created_at_col, updated_at_col
+"""
+Modelo Customer - Clientes
+Cada cliente pertence a uma empresa
+"""
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy.orm import relationship
+from datetime import datetime
+
+from app.core.database import Base
+
 
 class Customer(Base):
     __tablename__ = "customers"
-    id: Mapped[str] = pk_uuid()
-    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), index=True, nullable=False)
-    name: Mapped[str] = mapped_column(String(255), nullable=False)
-    phone: Mapped[str | None] = mapped_column(String(20))
-    email: Mapped[str | None] = mapped_column(String(255), nullable=True)  # novo
-    address: Mapped[str | None] = mapped_column(Text())
-    cpf: Mapped[str | None] = mapped_column(String(14))
-    birth_date: Mapped[object | None] = mapped_column(Date, nullable=True)  # novo
-    obs: Mapped[str | None] = mapped_column(Text, nullable=True)  # novo
-    status: Mapped[str] = mapped_column(String(10), nullable=False, default="active")
-    created_at = created_at_col()
-    updated_at = updated_at_col()
-
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    email = Column(String(200))
+    phone = Column(String(20))
+    cpf = Column(String(11), index=True)
+    address = Column(String(500))
+    
+    # Multi-tenant
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relacionamentos
+    company = relationship("Company", back_populates="customers")
+    sales = relationship("Sale", back_populates="customer")
+    installments = relationship("Installment", back_populates="customer")

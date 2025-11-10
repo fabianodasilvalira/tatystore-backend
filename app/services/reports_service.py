@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, text
-from app.models.sale import Sale, Installment
+from app.models.sale import Sale
+from app.models.installment import Installment
 from app.models.customer import Customer
 from app.models.product import Product
 

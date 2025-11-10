@@ -14,4 +14,3 @@ class UserService:
         q = select(User).where(User.email == email); user=(await self.db.execute(q)).scalar_one_or_none()
         if not user or not verify_password(password, user.password_hash): return None
         return user
-

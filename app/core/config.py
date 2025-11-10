@@ -1,37 +1,62 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from functools import lru_cache
-def _parse_list(csv: str) -> list[str]:
-    return [x.strip() for x in (csv or "").split(",") if x.strip()]
+"""
+Configurações da aplicação
+Carrega variáveis de ambiente e define constantes
+"""
+from pydantic_settings import BaseSettings
+from pydantic import ConfigDict, field_validator
+from typing import Optional, List
+import json
+
+
 class Settings(BaseSettings):
-    app_name: str = "Taty Store API"
-    app_env: str = "development"
-    database_url: str = "postgresql+asyncpg://postgres:postgres@db:5432/taty_store"
-    api_host: str = "0.0.0.0"
-    api_port: int = 8000
-    jwt_secret: str = "change_me"
-    jwt_algorithm: str = "HS256"
-    jwt_access_minutes: int = 60
-    jwt_issuer: str = "taty-store-api"
-    jwt_audience: str = "taty-store-clients"
-    cors_origins: str = "http://localhost:5173,http://localhost:3000"
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
-    smtp_username: str = ""
-    smtp_password: str = ""
-    smtp_tls: bool = True
-    smtp_ssl: bool = False
-    email_from: str = "no-reply@example.com"
-    email_from_name: str = "Taty Store"
-    scheduler_timezone: str = "America/Fortaleza"
-    overdue_job_hour: int = 3
-    upload_root: str = "uploads"
-    admin_email: str = "admin@local"
-    admin_password: str = "admin@2025"
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
-    @property
-    def cors_list(self) -> list[str]:
-        return _parse_list(self.cors_origins)
-@lru_cache
-def get_settings() -> Settings:
+    model_config = ConfigDict(
+        case_sensitive=False,
+        env_file=".env",
+        extra="allow"
+    )
+    
+    # Configurações do Projeto
+    PROJECT_NAME: str = "TatyStore Backend"
+    VERSION: str = "1.0.0"
+    API_V1_STR: str = "/api/v1"
+    DEBUG: bool = False
+    
+    # Segurança JWT
+    SECRET_KEY: str = "seu-secret-key-super-secreto-mude-em-producao"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 10080  # 7 dias
+    
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/tatystore"
+    
+    # CORS
+    BACKEND_CORS_ORIGINS: List[str] = ["*"]
+    
+    @field_validator("BACKEND_CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                return v.split(",")
+        return v
+    
+    # Cron Jobs
+    CRON_SECRET: str = "cron-secret-key-change-in-production"
+    OVERDUE_JOB_HOUR: int = 0
+    SCHEDULER_TIMEZONE: str = "America/Sao_Paulo"
+    
+    # Uploads
+    UPLOAD_DIR: str = "uploads"
+    MAX_UPLOAD_SIZE: int = 5242880  # 5MB
+    
+    # Admin padrão
+    ADMIN_EMAIL: str = "admin@tatystore.com"
+    ADMIN_PASSWORD: str = "admin123"
+
+
+def get_settings():
     return Settings()
 
+
+settings = Settings()

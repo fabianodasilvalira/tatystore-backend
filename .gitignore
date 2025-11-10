@@ -1,0 +1,75 @@
+# ====================================
+# Python
+# ====================================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# ====================================
+# Virtual Environment
+# ====================================
+.venv/
+venv/
+env/
+
+# ====================================
+# IDEs e Editores
+# ====================================
+.vscode/
+.idea/
+*.swp
+
+# ====================================
+# Logs
+# ====================================
+*.log
+logs/
+uvicorn.log
+
+# ====================================
+# Arquivos de Configuração Sensíveis
+# ====================================
+.env
+.env.*
+!.env.example
+
+# ====================================
+# Cache
+# ====================================
+.cache/
+.mypy_cache/
+pytest_cache/
+__pypackages__/
+pip-wheel-metadata/
+
+# ====================================
+# Docker
+# ====================================
+docker-data/
+*.tar
+*.pid
+
+# ====================================
+# Coverage
+# ====================================
+.coverage
+htmlcov/
+.coverage.*
+
+# ====================================
+# Banco de Dados Local (SQLite)
+# ====================================
+*.db
+*.sqlite3
+
+# ====================================
+# Alembic (apenas se quiser ignorar versões geradas)
+# Remova esta seção caso queira versionar migrations
+# ====================================
+# alembic/versions/*.py

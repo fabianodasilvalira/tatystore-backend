@@ -1,17 +1,42 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
-from sqlalchemy import update
+"""
+Job agendado para marcar parcelas vencidas como overdue
+Executado diariamente via cron
+"""
+from sqlalchemy import update, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import date
-from app.core.config import get_settings
-from app.core.db import AsyncSessionLocal
-from app.models.sale import Installment
-settings = get_settings()
-async def mark_overdue():
-    async with AsyncSessionLocal() as session:
-        await session.execute(
-            update(Installment).where(Installment.status=="pending", Installment.due_date < date.today()).values(status="overdue")
-        ); await session.commit()
-def setup_overdue_job(scheduler: AsyncIOScheduler):
-    trigger = CronTrigger(hour=settings.overdue_job_hour, timezone=settings.scheduler_timezone)
-    scheduler.add_job(mark_overdue, trigger, id="mark_overdue", replace_existing=True)
+from app.core.database import AsyncSessionLocal
+from app.core.config import settings
+from app.models.installment import Installment, InstallmentStatus
 
+
+async def mark_overdue_installments():
+    """
+    Marca todas as parcelas vencidas (due_date < hoje) como overdue
+    Executado diariamente
+    """
+    async with AsyncSessionLocal() as session:
+        # Buscar todas as parcelas pendentes com vencimento anterior ao dia atual
+        today = date.today()
+        
+        stmt = update(Installment).where(
+            Installment.status == InstallmentStatus.PENDING,
+            Installment.due_date < today
+        ).values(
+            status=InstallmentStatus.OVERDUE
+        )
+        
+        await session.execute(stmt)
+        await session.commit()
+
+
+def get_overdue_job_config():
+    """
+    Retorna configuração do cron job
+    Hora padrão: 00:00 UTC (pode ser customizada via OVERDUE_JOB_HOUR)
+    """
+    return {
+        "hour": getattr(settings, 'OVERDUE_JOB_HOUR', 0),
+        "minute": 0,
+        "timezone": getattr(settings, 'SCHEDULER_TIMEZONE', 'UTC')
+    }

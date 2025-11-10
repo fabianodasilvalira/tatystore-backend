@@ -24,4 +24,3 @@ async def send_email_async(to: str, subject: str, html: str):
 def send_email_background(background: BackgroundTasks, to: str, subject: str, template: str, **context):
     html = render_template(f"app/templates/email/{template}.html", **context)
     background.add_task(send_email_async, to, subject, html)
-

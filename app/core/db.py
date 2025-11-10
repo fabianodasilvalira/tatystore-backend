@@ -1,11 +1,24 @@
-from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import DeclarativeBase
-from app.core.config import get_settings
-settings = get_settings()
-engine = create_async_engine(settings.database_url, echo=False, pool_pre_ping=True)
-AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
-class Base(DeclarativeBase): pass
-async def get_db():
-    async with AsyncSessionLocal() as session:
-        yield session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from app.core.database import Base  # Consolidando em um único arquivo - este arquivo não será mais usado
 
+DATABASE_URL = "your_database_url_here"  # Assuming settings.DATABASE_URL is defined elsewhere
+
+engine = create_engine(
+    DATABASE_URL,
+    future=True,
+    echo=False
+)
+
+SessionLocal = sessionmaker(
+    autocommit=False,
+    autoflush=False,
+    bind=engine
+)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()

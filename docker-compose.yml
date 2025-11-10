@@ -1,30 +1,53 @@
 version: "3.9"
+
 services:
   db:
-    image: postgres:16
+    container_name: tatystore-backend-db
+    image: postgres:14
+    restart: always
     environment:
-      POSTGRES_DB: ${DB_NAME:-taty_store}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
-      TZ: ${TZ:-America/Fortaleza}
-    ports: ["5432:5432"]
-    volumes: [ "pgdata:/var/lib/postgresql/data" ]
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tatystore
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-taty_store}"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - tatystore-network
+
   api:
-    build: .
+    container_name: tatystore-backend-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    env_file: .env
-    ports: ["8000:8000"]
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/tatystore
+      ALEMBIC_DATABASE_URL: postgresql://postgres:postgres@db:5432/tatystore
+      SECRET_KEY: supersecret-change-in-production
+      DEBUG: "false"
+      PROJECT_NAME: "TatyStore Backend"
+      VERSION: "1.0.0"
     volumes:
-      - ./uploads:/app/uploads
-    command: >
-      sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
-volumes:
-  pgdata:
+      - media_data:/app/media
+    ports:
+      - "8080:8080"
+    networks:
+      - tatystore-network
 
+volumes:
+  pg_data:
+  media_data:
+
+networks:
+  tatystore-network:
+    driver: bridge

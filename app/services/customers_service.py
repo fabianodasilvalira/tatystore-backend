@@ -16,4 +16,3 @@ class CustomersService:
         if q: stmt=stmt.where(or_(Customer.name.ilike(f"%{q}%"), Customer.cpf.ilike(f"%{q}%")))
         stmt=stmt.order_by(Customer.created_at.desc()).offset(skip).limit(limit)
         return (await self.db.execute(stmt)).scalars().all()
-

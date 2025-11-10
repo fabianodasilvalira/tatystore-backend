@@ -10,4 +10,3 @@ def save_company_file(company_slug: str, folder: str, filename: str, file_bytes:
     with open(fp, "wb") as f:
         f.write(file_bytes)
     return f"/{settings.upload_root}/{company_slug}/{folder}/{safe}"
-

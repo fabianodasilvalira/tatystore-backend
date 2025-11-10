@@ -1,41 +1,75 @@
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from sqlalchemy import String, ForeignKey, DateTime, Date, Numeric, Integer
-from app.core.db import Base
-from app.models.common import pk_uuid, created_at_col, updated_at_col
+"""
+Modelo Sale e SaleItem - Vendas
+Suporta vendas à vista (cash), crediário (credit) e PIX
+"""
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum
+from sqlalchemy.orm import relationship
+from datetime import datetime
+import enum
+
+from app.core.database import Base
+
+
+class PaymentType(str, enum.Enum):
+    CASH = "cash"
+    CREDIT = "credit"
+    PIX = "pix"
+
+
+class SaleStatus(str, enum.Enum):
+    PENDING = "pending"
+    COMPLETED = "completed"
+    CANCELLED = "cancelled"
+
 
 class Sale(Base):
     __tablename__ = "sales"
-    id: Mapped[str] = pk_uuid()
-    company_id: Mapped[str] = mapped_column(ForeignKey("companies.id"), index=True, nullable=False)
-    customer_id: Mapped[str] = mapped_column(ForeignKey("customers.id"))
-    total_amount: Mapped[float] = mapped_column(Numeric(10,2), nullable=False)
-    discount_amount: Mapped[float] = mapped_column(Numeric(10,2), nullable=False, default=0)  # novo
-    payment_method: Mapped[str] = mapped_column(String(10), nullable=False)
-    sale_date: Mapped = mapped_column(DateTime(timezone=True), nullable=False)
-    first_due_date: Mapped = mapped_column(Date(), nullable=True)
-    status: Mapped[str] = mapped_column(String(15), nullable=False, default="completed")
-    created_at = created_at_col()
-    updated_at = updated_at_col()
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    # Relacionamentos
+    customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    
+    # Tipo de pagamento
+    payment_type = Column(Enum(PaymentType), nullable=False)
+    status = Column(Enum(SaleStatus), default=SaleStatus.PENDING)
+    
+    # Valores
+    subtotal = Column(Float, default=0.0)
+    discount_amount = Column(Float, default=0.0)
+    total_amount = Column(Float, nullable=False)
+    
+    # Crediário
+    installments_count = Column(Integer, default=1)
+    
+    # Observações
+    notes = Column(String(1000))
+    
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    # Relacionamentos
+    customer = relationship("Customer", back_populates="sales")
+    company = relationship("Company", back_populates="sales")
+    user = relationship("User", back_populates="sales")
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
     installments = relationship("Installment", back_populates="sale", cascade="all, delete-orphan")
 
+
 class SaleItem(Base):
     __tablename__ = "sale_items"
-    sale_id: Mapped[str] = mapped_column(ForeignKey("sales.id"), primary_key=True)
-    product_id: Mapped[str] = mapped_column(ForeignKey("products.id"), primary_key=True)
-    quantity: Mapped[int] = mapped_column(Integer, nullable=False)
-    unit_price: Mapped[float] = mapped_column(Numeric(10,2), nullable=False)
+    
+    id = Column(Integer, primary_key=True, index=True)
+    
+    sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
+    
+    quantity = Column(Integer, nullable=False)
+    unit_price = Column(Float, nullable=False)
+    total_price = Column(Float, nullable=False)
+    
+    # Relacionamentos
     sale = relationship("Sale", back_populates="items")
-
-class Installment(Base):
-    __tablename__ = "installments"
-    id: Mapped[str] = pk_uuid()
-    sale_id: Mapped[str] = mapped_column(ForeignKey("sales.id"))
-    amount: Mapped[float] = mapped_column(Numeric(10,2), nullable=False)
-    due_date: Mapped = mapped_column(Date(), nullable=False)
-    payment_date: Mapped = mapped_column(Date(), nullable=True)  # novo
-    status: Mapped[str] = mapped_column(String(10), nullable=False, default="pending")
-    created_at = created_at_col()
-    updated_at = updated_at_col()
-    sale = relationship("Sale", back_populates="installments")
-
+    product = relationship("Product", back_populates="sale_items")

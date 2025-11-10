@@ -25,4 +25,3 @@ class ProductsService:
         await self.db.delete(obj); await self.db.commit()
     async def update_photo(self, obj: Product, url: str):
         obj.photo_url=url; await self.db.commit(); await self.db.refresh(obj); return obj
-

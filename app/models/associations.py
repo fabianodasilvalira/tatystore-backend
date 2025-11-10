@@ -1,6 +1,6 @@
 from sqlalchemy import Table, Column, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from app.core.db import Base
+from app.core.database import Base
 
 role_permissions = Table(
     "role_permissions",

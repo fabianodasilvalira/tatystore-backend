@@ -1,6 +1,6 @@
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
-from app.core.db import AsyncSessionLocal
+from app.core.database import AsyncSessionLocal
 from app.models.audit_log import AuditLog
 class AuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -14,4 +14,3 @@ class AuditMiddleware(BaseHTTPMiddleware):
         except Exception:
             pass
         return response
-
