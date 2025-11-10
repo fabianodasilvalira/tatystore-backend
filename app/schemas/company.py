@@ -44,3 +44,10 @@ class CompanyResponse(CompanyBase):
     access_url: Optional[str] = None
     
     model_config = {"from_attributes": True}
+
+
+class CompanyCreateResponse(CompanyResponse):
+    """Resposta ao criar empresa, incluindo credenciais do admin"""
+    admin_email: str
+    admin_password: str
+    message: str

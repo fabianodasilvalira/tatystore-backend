@@ -28,19 +28,35 @@ class Settings(BaseSettings):
     
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/tatystore"
     
-    # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["*"]
-    
+    # CORS - Lista completa de origens permitidas
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:8080",
+        "http://localhost:5173",
+        "http://127.0.0.1:3000",
+        "http://127.0.0.1:3001",
+        "http://127.0.0.1:8080",
+    ]
+
+    # CORS - Lista completa de origens permitidas
+    BACKEND_CORS_ORIGINS: str | List[str] = ""
+
     @field_validator("BACKEND_CORS_ORIGINS", mode="before")
     @classmethod
     def parse_cors_origins(cls, v):
-        if isinstance(v, str):
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                return v.split(",")
-        return v
-    
+        if not v:
+            return []
+
+        # Se já é lista => ok
+        if isinstance(v, list):
+            return v
+
+        # Se veio como string => separar por vírgula
+        v = v.strip().replace(" ", "").replace('"', "").replace("'", "")
+        return v.split(",")
+
+
     # Cron Jobs
     CRON_SECRET: str = "cron-secret-key-change-in-production"
     OVERDUE_JOB_HOUR: int = 0

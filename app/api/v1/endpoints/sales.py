@@ -23,7 +23,7 @@ router = APIRouter()
 @router.post("/", response_model=SaleResponse, status_code=status.HTTP_201_CREATED, summary="Registrar nova venda")
 def create_sale(
     sale_data: SaleCreate,
-    current_user: User = Depends(require_role("admin", "gerente")),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -35,7 +35,7 @@ def create_sale(
     - Geração de parcelas (se crediário)
     - Desconto aplicado
     
-    **Requer:** Admin ou Gerente
+    **PERMISSÃO:** Gerente e Vendedor
     
     **Tipos de Pagamento:**
     - `cash`: À vista
@@ -210,13 +210,15 @@ def list_sales(
     customer_id: Optional[int] = None,
     status: Optional[str] = None,
     payment_type: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
     **Listar Vendas da Empresa**
     
     Lista todas as vendas com filtros opcionais.
+    
+    **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
     
     **Paginação:**
     - `skip`: Pular N registros (padrão: 0)
@@ -252,13 +254,15 @@ def list_sales(
 @router.get("/{sale_id}", response_model=SaleResponse, summary="Obter dados da venda")
 def get_sale(
     sale_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
     **Obter Dados de uma Venda**
     
     Retorna informações detalhadas de uma venda incluindo itens e parcelas.
+    
+    **PERMISSÃO:** Gerente e Vendedor (da própria empresa)
     """
     sale = db.query(Sale).filter(Sale.id == sale_id).first()
     
@@ -281,7 +285,7 @@ def get_sale(
 @router.post("/{sale_id}/cancel", summary="Cancelar venda")
 def cancel_sale(
     sale_id: int,
-    current_user: User = Depends(require_role("admin", "gerente")),
+    current_user: User = Depends(require_role("gerente", "Gerente")),
     db: Session = Depends(get_db)
 ):
     """
@@ -289,7 +293,7 @@ def cancel_sale(
     
     Cancela uma venda, restaurando estoque e cancelando parcelas.
     
-    **Requer:** Admin ou Gerente
+    **PERMISSÃO:** Apenas Gerente
     """
     sale = db.query(Sale).filter(Sale.id == sale_id).first()
     

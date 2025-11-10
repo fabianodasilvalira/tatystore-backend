@@ -41,7 +41,7 @@ def get_date_range(period: str, custom_date: Optional[date] = None):
 def report_sales(
     period: str = "month",
     custom_date: Optional[date] = None,
-    current_user: User = Depends(require_role("admin", "gerente")),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -49,7 +49,7 @@ def report_sales(
     
     Retorna resumo de vendas por período.
     
-    **Requer:** Admin ou Gerente
+    **PERMISSÃO:** Gerente e Vendedor
     
     **Períodos:**
     - `today`: Hoje
@@ -98,7 +98,7 @@ def report_sales(
 def report_profit(
     period: str = "month",
     custom_date: Optional[date] = None,
-    current_user: User = Depends(require_role("admin", "gerente")),
+    current_user: User = Depends(require_role("gerente", "Gerente")),
     db: Session = Depends(get_db)
 ):
     """
@@ -106,7 +106,7 @@ def report_profit(
     
     Retorna análise de custo vs receita por período.
     
-    **Requer:** Admin ou Gerente
+    **PERMISSÃO:** Apenas Gerente (acesso total aos dados financeiros)
     """
     start_date, end_date = get_date_range(period, custom_date)
     
@@ -149,7 +149,7 @@ def report_sold_products(
     period: str = "month",
     custom_date: Optional[date] = None,
     limit: int = 10,
-    current_user: User = Depends(require_role("admin", "gerente")),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -157,7 +157,7 @@ def report_sold_products(
     
     Retorna ranking de produtos por quantidade vendida.
     
-    **Requer:** Admin ou Gerente
+    **PERMISSÃO:** Gerente e Vendedor
     """
     start_date, end_date = get_date_range(period, custom_date)
     
@@ -201,7 +201,7 @@ def report_sold_products(
 def report_canceled_sales(
     period: str = "month",
     custom_date: Optional[date] = None,
-    current_user: User = Depends(require_role("admin", "gerente")),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -209,7 +209,7 @@ def report_canceled_sales(
     
     Retorna análise de vendas canceladas.
     
-    **Requer:** Admin ou Gerente
+    **PERMISSÃO:** Gerente e Vendedor
     """
     start_date, end_date = get_date_range(period, custom_date)
     
@@ -237,7 +237,7 @@ def report_canceled_sales(
 
 @router.get("/overdue", summary="Parcelas vencidas")
 def report_overdue(
-    current_user: User = Depends(require_role("admin", "gerente")),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -245,7 +245,7 @@ def report_overdue(
     
     Retorna análise de parcelas em atraso.
     
-    **Requer:** Admin ou Gerente
+    **PERMISSÃO:** Gerente e Vendedor
     """
     today = date.today()
     
@@ -269,13 +269,15 @@ def report_low_stock(
     threshold: int = 5,
     skip: int = 0,
     limit: int = 10,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
     **Produtos com Baixo Estoque**
     
     Retorna lista de produtos abaixo do threshold.
+    
+    **PERMISSÃO:** Gerente e Vendedor
     
     **Parâmetros:**
     - `threshold`: Quantidade mínima (padrão: 5)
@@ -294,6 +296,25 @@ def report_low_stock(
     
     products = query.offset(skip).limit(limit).all()
     
-    result = products
-    
-    return paginate(result, total, skip, limit)
+    products_data = [
+        {
+            "id": p.id,
+            "name": p.name,
+            "description": p.description,
+            "sku": p.sku,
+            "barcode": p.barcode,
+            "brand": p.brand,
+            "image_url": p.image_url,
+            "sale_price": float(p.sale_price),
+            "cost_price": float(p.cost_price),
+            "stock_quantity": p.stock_quantity,
+            "min_stock": p.min_stock,
+            "is_active": p.is_active,
+            "created_at": p.created_at.isoformat(),
+            "updated_at": p.updated_at.isoformat(),
+            "company_id": p.company_id
+        }
+        for p in products
+    ]
+
+    return paginate(products_data, total, skip, limit)

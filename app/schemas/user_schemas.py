@@ -16,6 +16,7 @@ class UserOut(BaseModel):
     email: EmailStr
     company_id: int
     role_id: Optional[int] = None
+    is_active: bool = True
     last_login_at: Optional[datetime] = None
     must_change_password: bool = False
     company_slug: Optional[str] = None
@@ -65,6 +66,7 @@ class TokenResponse(BaseModel):
     token_type: str = "bearer"
     expires_in: int
     user: UserOut
+    redirect_url: Optional[str] = None
 
 class RefreshTokenRequest(BaseModel):
     """Schema para refresh token"""

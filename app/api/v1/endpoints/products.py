@@ -1,11 +1,14 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
+import os
+from datetime import datetime
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.models.product import Product
+from app.models.company import Company
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
 from app.schemas.pagination import PaginatedResponse, paginate
 
@@ -51,6 +54,12 @@ def create_product(
     **Requer:** Admin ou Gerente
     
     **Controle de Estoque:** O estoque inicial é definido no cadastro
+    
+    **Campos Opcionais:**
+    - `brand`: Marca do produto
+    - `sku`: Código SKU
+    - `barcode`: Código de barras
+    - `description`: Descrição detalhada
     """
     # Criar produto
     product = Product(
@@ -84,7 +93,7 @@ def list_products(
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (padrão: 10, máximo: 100)
     
-    **Resposta:** Lista de produtos
+    **Resposta:** Lista de produtos com marca e imagem
     """
     query = db.query(Product).filter(Product.company_id == current_user.company_id)
     
@@ -106,7 +115,7 @@ def get_product(
     """
     **Obter Dados de um Produto**
     
-    Retorna informações detalhadas de um produto.
+    Retorna informações detalhadas de um produto incluindo marca e imagem.
     
     **Isolamento:** Apenas produtos da mesma empresa
     """
@@ -137,7 +146,7 @@ def update_product(
     """
     **Atualizar Produto**
     
-    Atualiza informações de um produto.
+    Atualiza informações de um produto incluindo marca.
     
     **Requer:** Admin ou Gerente
     
@@ -200,3 +209,80 @@ def delete_product(
     db.commit()
     
     return None
+
+@router.post("/{product_id}/image", response_model=ProductResponse, summary="Upload de imagem do produto")
+async def upload_product_image(
+    product_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role("admin", "gerente")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Upload de Imagem do Produto**
+    
+    Faz upload da imagem do produto.
+    
+    **Requer:** Admin ou Gerente
+    
+    **Formatos Aceitos:** JPG, PNG, WEBP
+    
+    **Tamanho Máximo:** 5MB
+    
+    **Arquivo salvo em:** `/uploads/{company_slug}/products/`
+    
+    **Retorna:** Dados completos do produto com a URL da imagem atualizada
+    """
+    # Buscar produto
+    product = db.query(Product).filter(Product.id == product_id).first()
+    
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Produto não encontrado"
+        )
+    
+    # Verificar isolamento
+    if product.company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado"
+        )
+    
+    # Validar tipo de arquivo
+    allowed_types = ["image/jpeg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Apenas JPG, PNG e WEBP são permitidos"
+        )
+    
+    # Validar tamanho do arquivo (5MB)
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:  # 5MB
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Arquivo muito grande. Máximo 5MB"
+        )
+    
+    # Buscar empresa para pegar o slug
+    company = db.query(Company).filter(Company.id == product.company_id).first()
+    
+    # Criar diretório se não existir
+    upload_dir = f"uploads/{company.slug}/products"
+    os.makedirs(upload_dir, exist_ok=True)
+    
+    # Gerar nome único para o arquivo
+    file_extension = file.filename.split(".")[-1]
+    filename = f"product_{product_id}_{int(datetime.utcnow().timestamp())}.{file_extension}"
+    filepath = os.path.join(upload_dir, filename)
+    
+    # Salvar arquivo
+    with open(filepath, "wb") as f:
+        f.write(contents)
+    
+    # Atualizar URL da imagem no produto
+    product.image_url = f"/{filepath}"
+    db.commit()
+    db.refresh(product)
+    
+    return product

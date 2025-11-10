@@ -25,18 +25,18 @@ def init_db():
     """
     try:
         print("🔄 Executando migrações do banco de dados...")
-        
+
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
             capture_output=True,
             text=True,
             timeout=60
         )
-        
+
         if result.returncode != 0:
             stderr = result.stderr.strip()
             stdout = result.stdout.strip()
-            
+
             if "already at head" not in stderr and "target database is not up to date" not in stderr and result.returncode == 0:
                 print("✓ Migrações já estão atualizadas")
             elif result.returncode == 0 and ("OK" in stdout or "success" in stdout.lower()):
@@ -52,7 +52,7 @@ def init_db():
                     raise
         else:
             print("✓ Migrações executadas com sucesso")
-        
+
         print("🌱 Inicializando dados do sistema...")
         db = SessionLocal()
         try:
@@ -60,7 +60,7 @@ def init_db():
             print("✓ Dados do sistema inicializados com sucesso")
         finally:
             db.close()
-            
+
     except Exception as e:
         print(f"✗ Erro ao inicializar banco: {e}")
         import traceback
@@ -77,7 +77,7 @@ async def setup_scheduler():
     """Setup scheduler para rodar jobs agendados"""
     try:
         scheduler = AsyncIOScheduler()
-        
+
         # Registrar job de parcelas vencidas
         job_config = get_overdue_job_config()
         scheduler.add_job(
@@ -88,7 +88,7 @@ async def setup_scheduler():
             timezone=job_config['timezone'],
             id='mark_overdue_daily'
         )
-        
+
         scheduler.start()
         print("✓ Scheduler iniciado com sucesso")
         return scheduler
@@ -109,9 +109,9 @@ async def lifespan(app: FastAPI):
         print("✓ Aplicação iniciada com sucesso")
     except Exception as e:
         print(f"✗ Erro na startup: {e}")
-    
+
     yield
-    
+
     # Shutdown
     if hasattr(app, 'scheduler') and app.scheduler:
         try:
@@ -177,6 +177,7 @@ app = FastAPI(
         {"name": "Cron", "description": "Tarefas agendadas"},
     ],
     lifespan=lifespan,
+    redirect_slashes=False,
     swagger_ui_parameters={
         "persistAuthorization": True,  # Mantém o token após refresh
         "defaultModelsExpandDepth": -1,  # Oculta schemas por padrão
@@ -187,13 +188,18 @@ cors_origins = settings.BACKEND_CORS_ORIGINS
 if isinstance(cors_origins, str):
     cors_origins = [cors_origins]
 
+# Adicionar middleware CORS ANTES de qualquer outra rota
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=cors_origins,  # Lista de origens permitidas
+    allow_credentials=True,  # Permite envio de cookies e headers de autenticação
+    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Métodos HTTP permitidos
+    allow_headers=["*"],  # Permite todos os headers
+    expose_headers=["*"],  # Expõe todos os headers na resposta
+    max_age=3600,  # Cache de preflight requests por 1 hora
 )
+
+print(f"✓ CORS configurado para as origens: {cors_origins}")
 
 # Servir arquivos de upload
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
@@ -206,7 +212,7 @@ app.include_router(api_router, prefix="/api/v1")
 async def root():
     """
     **Endpoint raiz do sistema**
-    
+
     Retorna informações básicas sobre o sistema.
     """
     return {
@@ -220,7 +226,7 @@ async def root():
 async def health_check():
     """
     **Health Check**
-    
+
     Verifica se o sistema está funcionando corretamente.
     """
     return {"status": "healthy"}
@@ -239,7 +245,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
-    
+
     openapi_schema = get_openapi(
         title=app.title,
         version=app.version,
@@ -247,7 +253,7 @@ def custom_openapi():
         routes=app.routes,
         tags=app.openapi_tags,
     )
-    
+
     openapi_schema["components"]["securitySchemes"] = {
         "Bearer": {
             "type": "http",
@@ -256,21 +262,21 @@ def custom_openapi():
             "description": "Cole o token JWT aqui (o prefixo 'Bearer' será adicionado automaticamente)"
         }
     }
-    
+
     if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
         if "LoginRequest" in openapi_schema["components"]["schemas"]:
             openapi_schema["components"]["schemas"]["LoginRequest"]["example"] = {
                 "email": "admin@taty.com",
                 "password": "admin123"
             }
-    
+
     for path in openapi_schema.get("paths", {}).values():
         for operation in path.values():
             if isinstance(operation, dict):
                 # Se a rota retorna 401, adicionar segurança
                 if operation.get("responses", {}).get("401"):
                     operation["security"] = [{"Bearer": []}]
-    
+
     app.openapi_schema = openapi_schema
     return app.openapi_schema
 

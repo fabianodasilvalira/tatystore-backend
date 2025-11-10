@@ -59,6 +59,29 @@ def _build_user_response(user: User, company: Company) -> UserOut:
     )
 
 
+def _get_redirect_url(role_name: str) -> str:
+    """
+    Determina a URL de redirecionamento baseada no perfil do usuário
+    
+    - Admin (Administrador): /companies (listar empresas)
+    - Gerente: /dashboard (dashboard da empresa)
+    - Vendedor: /products (listar produtos)
+    - Default: /dashboard
+    """
+    role_redirects = {
+        "Administrador": "/companies",
+        "admin": "/companies",
+        "Gerente": "/dashboard",
+        "gerente": "/dashboard",
+        "Vendedor": "/products",
+        "vendedor": "/products",
+        "Usuario": "/products",
+        "usuario": "/products"
+    }
+    
+    return role_redirects.get(role_name, "/dashboard")
+
+
 def _perform_login(email: str, password: str, db: Session) -> TokenResponse:
     """Helper function to perform login logic"""
     user = db.query(User).filter(User.email == email).first()
@@ -114,13 +137,16 @@ def _perform_login(email: str, password: str, db: Session) -> TokenResponse:
     db.commit()
 
     user_response = _build_user_response(user, company)
+    
+    redirect_url = _get_redirect_url(user.role.name)
 
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
         token_type="bearer",
         expires_in=JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=user_response
+        user=user_response,
+        redirect_url=redirect_url
     )
 
 
@@ -133,7 +159,12 @@ def login(
     **Realizar Login (JSON)**
 
     Realiza o login do usuário com email e senha via JSON.
-    Retorna access_token e refresh_token.
+    Retorna access_token, refresh_token e redirect_url baseada no perfil.
+    
+    **Redirecionamentos por Perfil:**
+    - Admin (Administrador): /companies (listar empresas)
+    - Gerente: /dashboard (dashboard da empresa)
+    - Vendedor: /products (listar produtos)
     
     **Para usar no Swagger:**
     1. Faça login aqui com email e senha (credenciais abaixo já vêm pré-preenchidas)
@@ -234,13 +265,16 @@ def refresh_token_endpoint(
     db.commit()
 
     user_response = _build_user_response(user, company)
+    
+    redirect_url = _get_redirect_url(user.role.name)
 
     return TokenResponse(
         access_token=new_access_token,
         refresh_token=new_refresh_token,
         token_type="bearer",
         expires_in=JWT_ACCESS_TOKEN_EXPIRE_MINUTES * 60,
-        user=user_response
+        user=user_response,
+        redirect_url=redirect_url
     )
 
 

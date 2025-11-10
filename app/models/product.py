@@ -17,6 +17,8 @@ class Product(Base):
     description = Column(String(1000))
     sku = Column(String(100), index=True)
     barcode = Column(String(100), index=True)
+    brand = Column(String(100))
+    image_url = Column(String(500))
     
     cost_price = Column(Float, nullable=False)
     sale_price = Column(Float, nullable=False)

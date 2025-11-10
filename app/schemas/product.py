@@ -7,6 +7,7 @@ class ProductBase(BaseModel):
     description: Optional[str] = None
     sku: Optional[str] = None
     barcode: Optional[str] = None
+    brand: Optional[str] = None
     sale_price: float
     cost_price: float
     stock_quantity: int = Field(ge=0, default=0)
@@ -21,6 +22,7 @@ class ProductUpdate(BaseModel):
     description: Optional[str] = None
     sku: Optional[str] = None
     barcode: Optional[str] = None
+    brand: Optional[str] = None
     sale_price: Optional[float] = None
     cost_price: Optional[float] = None
     stock_quantity: Optional[int] = Field(default=None, ge=0)
@@ -33,6 +35,8 @@ class ProductOut(BaseModel):
     description: Optional[str] = None
     sku: Optional[str] = None
     barcode: Optional[str] = None
+    brand: Optional[str] = None
+    image_url: Optional[str] = None
     sale_price: float
     cost_price: float
     stock_quantity: int
@@ -51,6 +55,8 @@ class ProductPublic(BaseModel):
     description: Optional[str] = None
     sku: Optional[str] = None
     barcode: Optional[str] = None
+    brand: Optional[str] = None
+    image_url: Optional[str] = None
     sale_price: float
     stock_quantity: int
     min_stock: int
