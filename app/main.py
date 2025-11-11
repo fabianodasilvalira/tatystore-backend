@@ -18,11 +18,8 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.jobs.overdue_job import mark_overdue_installments, get_overdue_job_config
 from fastapi.openapi.utils import get_openapi
 
+
 def init_db():
-    """
-    Inicializar banco de dados - executar migrações com Alembic
-    Migrações precisam rodar antes do seed_data
-    """
     try:
         print("🔄 Executando migrações do banco de dados...")
 
@@ -67,18 +64,17 @@ def init_db():
         traceback.print_exc()
         raise
 
+
 if os.getenv("TESTING") != "true":
     init_db()
 
-# Criar diretórios de upload
 os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
 
+
 async def setup_scheduler():
-    """Setup scheduler para rodar jobs agendados"""
     try:
         scheduler = AsyncIOScheduler()
 
-        # Registrar job de parcelas vencidas
         job_config = get_overdue_job_config()
         scheduler.add_job(
             mark_overdue_installments,
@@ -99,20 +95,12 @@ async def setup_scheduler():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Use modern lifespan context manager instead of @app.on_event
-    Manage startup and shutdown events
-    """
-    # Startup
     try:
         app.scheduler = await setup_scheduler()
         print("✓ Aplicação iniciada com sucesso")
     except Exception as e:
         print(f"✗ Erro na startup: {e}")
-
     yield
-
-    # Shutdown
     if hasattr(app, 'scheduler') and app.scheduler:
         try:
             app.scheduler.shutdown()
@@ -124,129 +112,59 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="""
-    ## TatyStore Backend - Sistema Multi-Empresa
-    
-    Sistema completo de gestão comercial com suporte a múltiplas empresas.
-    
-    ### Funcionalidades:
-    - ✓ Autenticação JWT com isolamento por empresa
-    - ✓ Gestão de Produtos e Estoque
-    - ✓ Vendas (À Vista e Crediário)
-    - ✓ Clientes
-    - ✓ Parcelas com atualização automática
-    - ✓ Relatórios Completos
-    - ✓ Integração PIX
-    - ✓ Rotas Públicas para Visitantes
-    
-    ### 🔐 Como Autenticar no Swagger:
-    
-    **Passo 1:** Faça login em **POST /api/v1/auth/login** com as credenciais abaixo
-    **Passo 2:** Copie o valor do campo **"access_token"** da resposta
-    **Passo 3:** Clique no botão **"Authorize" 🔓** no topo da página
-    **Passo 4:** Cole o token no campo (NÃO precisa adicionar "Bearer", é automático)
-    **Passo 5:** Clique em **"Authorize"** e feche o modal
-    **Passo 6:** Agora todas as rotas protegidas funcionarão! ✅
-    
-    ### 👤 Credenciais Padrão (Já Pré-preenchidas):
-    
-    **Empresa Taty:**
-    - 🔑 Admin: **admin@taty.com** / **admin123**
-    - 👔 Gerente: **gerente@taty.com** / **gerente123**
-    - 🛒 Vendedor: **vendedor@taty.com** / **vendedor123**
-    
-    **Empresa Carol:**
-    - 🔑 Admin: **admin@carol.com** / **admin123**
-    - 👔 Gerente: **gerente@carol.com** / **gerente123**
-    - 🛒 Vendedor: **vendedor@carol.com** / **vendedor123**
-    
-    ### 💡 Dica:
-    As credenciais já vêm pré-preenchidas no endpoint de login para facilitar os testes!
-    """,
-    openapi_tags=[
-        {"name": "Autenticação", "description": "Login e gerenciamento de sessão"},
-        {"name": "Empresas", "description": "Cadastro e gestão de empresas"},
-        {"name": "Usuários", "description": "Gestão de usuários do sistema"},
-        {"name": "Produtos", "description": "Catálogo e controle de estoque"},
-        {"name": "Clientes", "description": "Cadastro de clientes"},
-        {"name": "Vendas", "description": "Vendas à vista e crediário"},
-        {"name": "Parcelas", "description": "Gestão de parcelas e crediário"},
-        {"name": "Relatórios", "description": "Relatórios gerenciais"},
-        {"name": "PIX", "description": "Integração de pagamento PIX"},
-        {"name": "Público", "description": "Rotas sem autenticação"},
-        {"name": "Cron", "description": "Tarefas agendadas"},
-    ],
     lifespan=lifespan,
     redirect_slashes=False,
     swagger_ui_parameters={
-        "persistAuthorization": True,  # Mantém o token após refresh
-        "defaultModelsExpandDepth": -1,  # Oculta schemas por padrão
+        "persistAuthorization": True,
+        "defaultModelsExpandDepth": -1,
     }
 )
 
-cors_origins = settings.BACKEND_CORS_ORIGINS
-if isinstance(cors_origins, str):
-    cors_origins = [cors_origins]
-
-# Adicionar middleware CORS ANTES de qualquer outra rota
+# ✅ CORS FINAL E CORRETO — LÊ DO .env
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=cors_origins,  # Lista de origens permitidas
-    allow_credentials=True,  # Permite envio de cookies e headers de autenticação
-    allow_methods=["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],  # Métodos HTTP permitidos
-    allow_headers=["*"],  # Permite todos os headers
-    expose_headers=["*"],  # Expõe todos os headers na resposta
-    max_age=3600,  # Cache de preflight requests por 1 hora
+    allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-print(f"✓ CORS configurado para as origens: {cors_origins}")
+print(f"✓ CORS configurado para: {settings.BACKEND_CORS_ORIGINS}")
 
-# Servir arquivos de upload
+# Servir uploads
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
-# Incluir rotas da API
+# API
 app.include_router(api_router, prefix="/api/v1")
 
 
 @app.get("/", tags=["Sistema"])
 async def root():
-    """
-    **Endpoint raiz do sistema**
-
-    Retorna informações básicas sobre o sistema.
-    """
     return {
-        "message": "TatyStore Backend API",
+        "message": settings.PROJECT_NAME,
         "version": settings.VERSION,
-        "docs": "/docs",
-        "status": "online"
+        "status": "online",
     }
+
 
 @app.get("/health", tags=["Sistema"])
 async def health_check():
-    """
-    **Health Check**
-
-    Verifica se o sistema está funcionando corretamente.
-    """
     return {"status": "healthy"}
 
-# Handler de erros global
+
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
-        content={
-            "detail": "Erro interno do servidor. Entre em contato com o suporte.",
-            "error": str(exc) if settings.DEBUG else None
-        }
+        content={"detail": "Erro interno do servidor."}
     )
+
 
 def custom_openapi():
     if app.openapi_schema:
         return app.openapi_schema
 
-    openapi_schema = get_openapi(
+    schema = get_openapi(
         title=app.title,
         version=app.version,
         description=app.description,
@@ -254,30 +172,8 @@ def custom_openapi():
         tags=app.openapi_tags,
     )
 
-    openapi_schema["components"]["securitySchemes"] = {
-        "Bearer": {
-            "type": "http",
-            "scheme": "bearer",
-            "bearerFormat": "JWT",
-            "description": "Cole o token JWT aqui (o prefixo 'Bearer' será adicionado automaticamente)"
-        }
-    }
-
-    if "components" in openapi_schema and "schemas" in openapi_schema["components"]:
-        if "LoginRequest" in openapi_schema["components"]["schemas"]:
-            openapi_schema["components"]["schemas"]["LoginRequest"]["example"] = {
-                "email": "admin@taty.com",
-                "password": "admin123"
-            }
-
-    for path in openapi_schema.get("paths", {}).values():
-        for operation in path.values():
-            if isinstance(operation, dict):
-                # Se a rota retorna 401, adicionar segurança
-                if operation.get("responses", {}).get("401"):
-                    operation["security"] = [{"Bearer": []}]
-
-    app.openapi_schema = openapi_schema
+    app.openapi_schema = schema
     return app.openapi_schema
+
 
 app.openapi = custom_openapi
