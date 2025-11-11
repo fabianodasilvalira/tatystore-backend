@@ -203,6 +203,46 @@ async def get_company_product(
     return product
 
 
+@router.get("/companies/slug/{company_slug}", summary="Obter dados públicos da empresa")
+async def get_public_company(
+        company_slug: str,
+        db: Session = Depends(get_db)
+):
+    """
+    **Obter Dados Públicos da Empresa pelo SLUG (Sem autenticação)**
+
+    Retorna informações básicas da empresa se ela estiver ativa.
+
+    **Parâmetros:**
+    - `company_slug`: Slug único da empresa
+
+    **Retorna:** Dados públicos da empresa
+    """
+    company = db.query(Company).filter(
+        Company.slug == company_slug,
+        Company.is_active == True
+    ).first()
+
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empresa não encontrada ou inativa"
+        )
+
+    return {
+        "id": company.id,
+        "name": company.name,
+        "slug": company.slug,
+        "email": company.email,
+        "phone": company.phone,
+        "address": company.address,
+        "logo_url": company.logo_url,
+        "created_at": company.created_at,
+        "is_active": company.is_active
+    }
+
+
+
 @router.get("/test-credentials", summary="Ver credenciais de teste")
 def get_test_credentials(db: Session = Depends(get_db)):
     """

@@ -63,6 +63,7 @@ class Settings(BaseSettings):
     SCHEDULER_TIMEZONE: str = "America/Sao_Paulo"
     
     # Uploads
+    API_BASE_URL: str = "http://localhost:8080"
     UPLOAD_DIR: str = "uploads"
     upload_root: str = "uploads"  # Usado pelo storage_local.py
     MAX_UPLOAD_SIZE: int = 5242880  # 5MB

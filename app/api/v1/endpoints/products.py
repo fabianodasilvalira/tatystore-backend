@@ -46,9 +46,6 @@ def search_products(
 
     query = db.query(Product).filter(Product.company_id == current_user.company_id)
 
-    if active_only:
-        query = query.filter(Product.is_active == True)
-
     if category_id:
         query = query.filter(Product.category_id == category_id)
 
@@ -75,6 +72,7 @@ def search_products(
             "sku": p.sku,
             "brand": p.brand,
             "image_url": p.image_url,
+            "is_active": p.is_active,
             "min_stock": p.min_stock,
             "category_id": p.category_id,
             "is_on_sale": p.is_on_sale,

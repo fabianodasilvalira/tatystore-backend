@@ -26,6 +26,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    image: tatystore-backend:latest
     restart: unless-stopped
     depends_on:
       db:
@@ -37,16 +38,23 @@ services:
       DEBUG: "false"
       PROJECT_NAME: "TatyStore Backend"
       VERSION: "1.0.0"
+
+      # IMPORTANTE — URL usada para gerar o link da imagem
+      API_BASE_URL: http://localhost:8080
+      UPLOAD_DIR: /app/uploads
+
     volumes:
-      - media_data:/app/media
+      - ./uploads:/app/uploads     # <--- agora persistindo e visível no host
+
     ports:
-      - "8080:8080"
+      - "8080:8080"                # <--- movido para o lugar correto
+
     networks:
       - tatystore-network
 
 volumes:
   pg_data:
-  media_data:
+  uploads:
 
 networks:
   tatystore-network:
