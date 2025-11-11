@@ -15,11 +15,25 @@ class SaleCreate(BaseModel):
     installments_count: Optional[int] = Field(default=None, ge=1, le=60)
     notes: Optional[str] = None
 
+class ProductInSaleItem(BaseModel):
+    """Dados do produto no item de venda"""
+    id: int
+    name: str
+    brand: Optional[str] = None
+    sku: Optional[str] = None
+    barcode: Optional[str] = None
+    image_url: Optional[str] = None
+    is_on_sale: bool = False
+    promotional_price: Optional[float] = None
+    
+    model_config = ConfigDict(from_attributes=True)
+
 class SaleItemOut(BaseModel):
     product_id: int
     quantity: int
     unit_price: float
     total_price: float
+    product: Optional[ProductInSaleItem] = None  # Dados completos do produto
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -28,6 +42,16 @@ class InstallmentItemOut(BaseModel):
     amount: float
     due_date: date
     status: str
+    
+    model_config = ConfigDict(from_attributes=True)
+
+class CustomerInSale(BaseModel):
+    """Dados do cliente na venda"""
+    id: int
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    cpf: Optional[str] = None
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -45,6 +69,7 @@ class SaleOut(BaseModel):
     status: str
     items: List[SaleItemOut]
     installments: List[InstallmentItemOut] = []
+    customer: Optional[CustomerInSale] = None  # Dados completos do cliente
     
     model_config = ConfigDict(from_attributes=True)
 

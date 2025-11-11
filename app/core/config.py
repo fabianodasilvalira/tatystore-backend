@@ -64,6 +64,7 @@ class Settings(BaseSettings):
     
     # Uploads
     UPLOAD_DIR: str = "uploads"
+    upload_root: str = "uploads"  # Usado pelo storage_local.py
     MAX_UPLOAD_SIZE: int = 5242880  # 5MB
     
     # Admin padrão

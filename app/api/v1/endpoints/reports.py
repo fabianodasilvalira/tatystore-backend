@@ -2,11 +2,12 @@
 Endpoints de Relatórios (v1)
 Vendas, lucros, produtos, cancelamentos, vencidos, baixo estoque
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import Optional
 from datetime import datetime, date, timedelta
 from sqlalchemy import func
+import calendar
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -65,19 +66,12 @@ def report_sales(
             detail="Período inválido"
         )
     
-    if period == "today":
-        # For today, just filter by company and non-cancelled status
-        sales = db.query(Sale).filter(
-            Sale.company_id == current_user.company_id,
-            Sale.status != SaleStatus.CANCELLED
-        ).all()
-    else:
-        sales = db.query(Sale).filter(
-            Sale.company_id == current_user.company_id,
-            Sale.created_at >= start_date,
-            Sale.created_at < end_date,
-            Sale.status != SaleStatus.CANCELLED
-        ).all()
+    sales = db.query(Sale).filter(
+        Sale.company_id == current_user.company_id,
+        Sale.created_at >= datetime.combine(start_date, datetime.min.time()),
+        Sale.created_at < datetime.combine(end_date, datetime.min.time()),
+        Sale.status != SaleStatus.CANCELLED
+    ).all()
     
     total_revenue = sum(s.total_amount for s in sales)
     total_discount = sum(s.discount_amount for s in sales)
@@ -91,6 +85,112 @@ def report_sales(
         "total_revenue": total_revenue,
         "total_discount": total_discount,
         "average_ticket": total_revenue / count if count > 0 else 0
+    }
+
+
+@router.get("/sales-over-time", summary="Vendas ao longo do tempo")
+def report_sales_over_time(
+    period: str = Query("week", regex="^(day|week|month)$", description="Granularidade: day, week, month"),
+    start_date: Optional[date] = Query(None, description="Data inicial (padrão: 30 dias atrás)"),
+    end_date: Optional[date] = Query(None, description="Data final (padrão: hoje)"),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Relatório de Vendas ao Longo do Tempo**
+    
+    Analisa tendência de vendas agregando dados por dia, semana ou mês.
+    Útil para visualizar crescimento e padrões de vendas.
+    
+    **PERMISSÃO:** Gerente e Vendedor
+    
+    **Parâmetros:**
+    - `period`: Granularidade de agregação
+      - `day`: Dados diários
+      - `week`: Dados por semana (segunda a domingo)
+      - `month`: Dados por mês
+    - `start_date`: Data inicial (padrão: 30 dias atrás)
+    - `end_date`: Data final (padrão: hoje)
+    
+    **Retorna:**
+    - Array com períodos e estatísticas: total_sales, total_revenue, average_ticket, completed_count
+    
+    **Exemplo:** GET /reports/sales-over-time?period=week&start_date=2025-01-01
+    """
+    today = date.today()
+    
+    # Definir datas padrão se não informadas
+    if not end_date:
+        end_date = today
+    if not start_date:
+        start_date = today - timedelta(days=30)
+    
+    # Validar datas
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Data inicial não pode ser maior que data final"
+        )
+    
+    # Buscar todas as vendas no período
+    sales = db.query(Sale).filter(
+        Sale.company_id == current_user.company_id,
+        Sale.created_at >= datetime.combine(start_date, datetime.min.time()),
+        Sale.created_at < datetime.combine(end_date + timedelta(days=1), datetime.min.time()),
+        Sale.status == SaleStatus.COMPLETED
+    ).all()
+    
+    # Agrupar por período
+    period_data = {}
+    
+    for sale in sales:
+        sale_date = sale.created_at.date()
+        
+        # Determinar chave de período
+        if period == "day":
+            period_key = sale_date
+            period_label = sale_date.isoformat()
+        elif period == "week":
+            # Segunda de semana atual
+            week_start = sale_date - timedelta(days=sale_date.weekday())
+            period_key = week_start
+            period_label = f"{week_start.isoformat()} a {(week_start + timedelta(days=6)).isoformat()}"
+        else:  # month
+            period_key = date(sale_date.year, sale_date.month, 1)
+            period_label = f"{sale_date.year}-{sale_date.month:02d}"
+        
+        if period_key not in period_data:
+            period_data[period_key] = {
+                "period": period_label,
+                "start_date": period_key,
+                "end_date": period_key + (timedelta(days=6) if period == "week" else timedelta(days=calendar.monthrange(period_key.year, period_key.month)[1] - 1) if period == "month" else timedelta(days=0)),
+                "total_sales": 0,
+                "total_revenue": 0.0,
+                "completed_count": 0,
+                "average_ticket": 0.0
+            }
+        
+        period_data[period_key]["total_sales"] += 1
+        period_data[period_key]["total_revenue"] += sale.total_amount
+        period_data[period_key]["completed_count"] += 1
+    
+    # Calcular ticket médio
+    for period_info in period_data.values():
+        if period_info["completed_count"] > 0:
+            period_info["average_ticket"] = period_info["total_revenue"] / period_info["completed_count"]
+    
+    # Ordenar por período
+    sorted_periods = sorted(period_data.items(), key=lambda x: x[0])
+    result = [item[1] for item in sorted_periods]
+    
+    return {
+        "period_type": period,
+        "date_range": {
+            "start_date": start_date,
+            "end_date": end_date
+        },
+        "total_periods": len(result),
+        "data": result
     }
 
 
@@ -207,31 +307,58 @@ def report_canceled_sales(
     """
     **Vendas Canceladas**
     
-    Retorna análise de vendas canceladas.
-    
+    Retorna análise de vendas canceladas com detalhe de cada venda.
+
     **PERMISSÃO:** Gerente e Vendedor
+
+    **Parâmetros:**
+    - `period`: Período predefinido (today, week, month, custom)
+    - `custom_date`: Data para período custom
+
+    **Resposta:**
+    - `canceled_count`: Número total de vendas canceladas
+    - `total_amount`: Soma do valor total perdido
+    - `sales`: Array de vendas canceladas com detalhes
+      - `sale_id`: ID da venda
+      - `customer_name`: Nome do cliente
+      - `sale_date`: Data da venda
+      - `total_amount`: Valor total da venda
+
+    **Exemplo:** GET /reports/canceled-sales?period=month
     """
     start_date, end_date = get_date_range(period, custom_date)
-    
+
     if not start_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Período inválido"
         )
-    
+
     canceled_sales = db.query(Sale).filter(
         Sale.company_id == current_user.company_id,
-        Sale.created_at >= start_date,
-        Sale.created_at < end_date,
+        Sale.created_at >= datetime.combine(start_date, datetime.min.time()),
+        Sale.created_at < datetime.combine(end_date, datetime.min.time()),
         Sale.status == SaleStatus.CANCELLED
     ).all()
-    
+
     total_lost = sum(s.total_amount for s in canceled_sales)
-    
+
+    # Formatar array de vendas canceladas
+    sales_data = [
+        {
+            "sale_id": sale.id,
+            "customer_name": sale.customer.name if sale.customer else "N/A",
+            "sale_date": sale.created_at.isoformat(),
+            "total_amount": float(sale.total_amount)
+        }
+        for sale in canceled_sales
+    ]
+
     return {
         "period": period,
         "canceled_count": len(canceled_sales),
-        "total_amount": total_lost
+        "total_amount": round(total_lost, 2),
+        "sales": sales_data
     }
 
 
@@ -318,3 +445,191 @@ def report_low_stock(
     ]
 
     return paginate(products_data, total, skip, limit)
+
+
+@router.get("/sales-summary", summary="Resumo de vendas com lucro")
+def report_sales_summary(
+    period: str = Query("month", description="Período: today, week, month ou custom"),
+    custom_date: Optional[date] = Query(None, description="Data específica para período custom"),
+    start_date: Optional[date] = Query(None, description="Data inicial (sobrescreve period)"),
+    end_date: Optional[date] = Query(None, description="Data final (sobrescreve period)"),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Resumo de Vendas com Lucro**
+    
+    Retorna agregação completa de vendas: receita, custo, desconto, lucro e margem.
+    Ideal para Dashboard e Página de Relatórios.
+    
+    **PERMISSÃO:** Gerente e Vendedor
+    
+    **Parâmetros:**
+    - `period`: Período predefinido (today, week, month, custom)
+    - `custom_date`: Data para período custom
+    - `start_date`: Data inicial customizada (sobrescreve period)
+    - `end_date`: Data final customizada (sobrescreve period)
+    
+    **Resposta:**
+    - `total_revenue`: Receita bruta (soma dos itens vendidos)
+    - `total_sales`: Número total de vendas
+    - `total_discount`: Soma de todos os descontos
+    - `average_ticket`: Ticket médio por venda
+    - `total_cost`: Custo total dos produtos vendidos
+    - `profit`: Lucro bruto (receita - custo - desconto)
+    - `margin_percentage`: Margem de lucro em %
+    - `sales`: Array de vendas para relatório
+    
+    **Exemplo:** GET /reports/sales-summary?period=month
+    """
+    today = date.today()
+    
+    # Definir datas usando período ou customizado
+    if start_date and end_date:
+        # Usar datas customizadas se informadas
+        query_start = start_date
+        query_end = end_date
+    else:
+        # Usar período predefinido
+        query_start, query_end = get_date_range(period, custom_date)
+    
+    if not query_start:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Período inválido"
+        )
+    
+    # Validar datas
+    if query_start > query_end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Data inicial não pode ser maior que data final"
+        )
+    
+    # Buscar todas as vendas COMPLETED no período
+    sales = db.query(Sale).filter(
+        Sale.company_id == current_user.company_id,
+        Sale.created_at >= datetime.combine(query_start, datetime.min.time()),
+        Sale.created_at < datetime.combine(query_end + timedelta(days=1), datetime.min.time()),
+        Sale.status == SaleStatus.COMPLETED
+    ).all()
+    
+    # Calcular métricas
+    total_revenue = 0.0
+    total_discount = 0.0
+    total_cost = 0.0
+    sales_count = len(sales)
+    sales_data = []
+    
+    for sale in sales:
+        # Somar receita e desconto
+        total_revenue += sale.total_amount
+        total_discount += sale.discount_amount
+        
+        # Calcular custo total dos itens vendidos
+        for item in sale.items:
+            product = db.query(Product).filter(Product.id == item.product_id).first()
+            if product:
+                total_cost += float(product.cost_price) * item.quantity
+        
+        # Adicionar venda ao array
+        sales_data.append({
+            "sale_id": sale.id,
+            "customer_name": sale.customer.name if sale.customer else "N/A",
+            "sale_date": sale.created_at.isoformat(),
+            "total_amount": float(sale.total_amount)
+        })
+    
+    # Calcular lucro e margem
+    profit = total_revenue - total_cost - total_discount
+    margin_percentage = (profit / total_revenue * 100) if total_revenue > 0 else 0.0
+    average_ticket = (total_revenue / sales_count) if sales_count > 0 else 0.0
+    
+    return {
+        "total_revenue": round(total_revenue, 2),
+        "total_sales": sales_count,
+        "total_discount": round(total_discount, 2),
+        "average_ticket": round(average_ticket, 2),
+        "total_cost": round(total_cost, 2),
+        "profit": round(profit, 2),
+        "margin_percentage": round(margin_percentage, 2),
+        "sales": sales_data
+    }
+
+
+@router.get("/overdue-customers", summary="Clientes com parcelas vencidas")
+def report_overdue_customers(
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Clientes com Parcelas Vencidas**
+    
+    Identifica todos os clientes com parcelas não pagas após a data de vencimento.
+    Útil para gestão de cobrança e análise de risco de crédito.
+    
+    **PERMISSÃO:** Gerente e Vendedor
+    
+    **Resposta:**
+    - `overdue_count`: Número de clientes únicos com débito
+    - `total_amount`: Soma total de todas as parcelas vencidas
+    - `oldest_date`: Data de vencimento mais antiga
+    - `customers`: Array de clientes com débito
+      - `id`: ID do cliente
+      - `name`: Nome do cliente
+      - `phone`: Telefone para contato
+      - `total_debt`: Soma das parcelas vencidas deste cliente
+    
+    **Exemplo:** GET /reports/overdue-customers
+    """
+    today = date.today()
+    
+    # Buscar todas as parcelas com status OVERDUE
+    overdue_installments = db.query(Installment).filter(
+        Installment.company_id == current_user.company_id,
+        Installment.status == InstallmentStatus.OVERDUE,
+        Installment.due_date < today
+    ).all()
+    
+    # Agrupar por cliente
+    customers_debt = {}
+    total_overdue_amount = 0.0
+    oldest_date = None
+    
+    for installment in overdue_installments:
+        total_overdue_amount += installment.amount
+        
+        # Atualizar data mais antiga
+        if oldest_date is None or installment.due_date < oldest_date:
+            oldest_date = installment.due_date
+        
+        # Agrupar por cliente
+        customer_id = installment.customer_id
+        if customer_id not in customers_debt:
+            customers_debt[customer_id] = {
+                "customer": installment.customer,
+                "total_debt": 0.0
+            }
+        
+        customers_debt[customer_id]["total_debt"] += installment.amount
+    
+    # Formatar resposta com dados de clientes
+    customers_list = []
+    for customer_id, debt_info in customers_debt.items():
+        customer = debt_info["customer"]
+        customers_list.append({
+            "id": customer.id,
+            "name": customer.name,
+            "phone": customer.phone or "N/A",
+            "total_debt": round(debt_info["total_debt"], 2)
+        })
+    
+    # Ordenar por maior débito
+    customers_list.sort(key=lambda x: x["total_debt"], reverse=True)
+    
+    return {
+        "overdue_count": len(customers_debt),
+        "total_amount": round(total_overdue_amount, 2),
+        "oldest_date": oldest_date.isoformat() if oldest_date else None,
+        "customers": customers_list
+    }

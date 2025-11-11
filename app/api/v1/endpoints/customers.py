@@ -90,8 +90,7 @@ async def list_customers(
     **Resposta:** Lista de clientes
     """
     query = db.query(Customer).filter(
-        Customer.company_id == current_user.company_id,
-        Customer.is_active == True
+        Customer.company_id == current_user.company_id
     )
     
     if search:

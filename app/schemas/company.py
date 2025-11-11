@@ -13,6 +13,7 @@ class CompanyBase(BaseModel):
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
     address: Optional[str] = None
+    logo_url: Optional[str] = None
     
     @field_validator('cnpj')
     @classmethod
@@ -34,6 +35,7 @@ class CompanyUpdate(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     is_active: Optional[bool] = None
+    logo_url: Optional[str] = None
 
 
 class CompanyResponse(CompanyBase):

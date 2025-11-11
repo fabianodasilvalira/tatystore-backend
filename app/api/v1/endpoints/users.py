@@ -102,7 +102,7 @@ async def list_users(
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (padrão: 10, máximo: 100)
     
-    **Resposta:** Lista de usuários
+    **Resposta:** Lista de usuários (inclui ativos e inativos)
     """
     query = db.query(User).filter(
         User.company_id == current_user.company_id

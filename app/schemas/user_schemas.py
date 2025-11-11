@@ -21,6 +21,8 @@ class UserOut(BaseModel):
     must_change_password: bool = False
     company_slug: Optional[str] = None
     role: Optional[str] = None
+    company_name: Optional[str] = None
+    company_logo_url: Optional[str] = None
     
     @property
     def normalized_role(self) -> Optional[str]:

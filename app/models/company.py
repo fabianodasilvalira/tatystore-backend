@@ -19,6 +19,7 @@ class Company(Base):
     email = Column(String(200))
     phone = Column(String(20))
     address = Column(String(500))
+    logo_url = Column(String(500), nullable=True)
     
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
@@ -29,3 +30,4 @@ class Company(Base):
     products = relationship("Product", back_populates="company")
     customers = relationship("Customer", back_populates="company")
     sales = relationship("Sale", back_populates="company")
+    categories = relationship("Category", back_populates="company")

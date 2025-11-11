@@ -23,8 +23,13 @@ class Product(Base):
     cost_price = Column(Float, nullable=False)
     sale_price = Column(Float, nullable=False)
     
+    is_on_sale = Column(Boolean, default=False)
+    promotional_price = Column(Float, nullable=True)
+    
     stock_quantity = Column(Integer, default=0)
     min_stock = Column(Integer, default=0)
+    
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=True)
     
     # Multi-tenant
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
@@ -36,3 +41,4 @@ class Product(Base):
     # Relacionamentos
     company = relationship("Company", back_populates="products")
     sale_items = relationship("SaleItem", back_populates="product")
+    category = relationship("Category", back_populates="products")

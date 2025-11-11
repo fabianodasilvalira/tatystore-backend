@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from app.core.database import get_db
 from app.models.product import Product
+from app.models.category import Category
 from app.models.company import Company
 from app.models.user import User
 from app.models.role import Role
@@ -16,10 +17,62 @@ from app.schemas.product import ProductPublicResponse
 router = APIRouter()
 
 
+@router.get("/companies/{company_slug}/categories", summary="Listar categorias de uma empresa (público)")
+async def list_company_categories(
+    company_slug: str,
+    db: Session = Depends(get_db)
+):
+    """
+    **Listar Categorias Públicas**
+    
+    Lista categorias ativas de uma empresa pelo slug (sem autenticação).
+    Útil para criar menus de navegação em sites/apps.
+    
+    **Parâmetros:**
+    - `company_slug`: Slug único da empresa
+    
+    **Retorna:** Lista de categorias com contagem de produtos ativos
+    """
+    company = db.query(Company).filter(
+        Company.slug == company_slug,
+        Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empresa não encontrada"
+        )
+    
+    # Buscar categorias com contagem de produtos
+    from sqlalchemy import func
+    categories = db.query(
+        Category,
+        func.count(Product.id).label('product_count')
+    ).outerjoin(
+        Product,
+        (Product.category_id == Category.id) & (Product.is_active == True)
+    ).filter(
+        Category.company_id == company.id,
+        Category.is_active == True
+    ).group_by(Category.id).all()
+    
+    return [
+        {
+            "id": cat.id,
+            "name": cat.name,
+            "description": cat.description,
+            "product_count": count
+        }
+        for cat, count in categories
+    ]
+
+
 @router.get("/companies/{company_slug}/products", response_model=List[ProductPublicResponse], summary="Listar produtos de uma empresa (público)")
 async def list_company_products(
     company_slug: str,
     search: Optional[str] = None,
+    category_id: Optional[int] = None,
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db)
@@ -33,6 +86,7 @@ async def list_company_products(
     **Parâmetros:**
     - `company_slug`: Slug único da empresa
     - `search`: Buscar por nome
+    - `category_id`: Filtrar por categoria (novo)
     """
     company = db.query(Company).filter(
         Company.slug == company_slug,
@@ -53,7 +107,61 @@ async def list_company_products(
     if search:
         query = query.filter(Product.name.ilike(f"%{search}%"))
     
+    if category_id:
+        query = query.filter(Product.category_id == category_id)
+    
     products = query.offset(skip).limit(limit).all()
+    
+    return products
+
+
+@router.get("/companies/{company_slug}/categories/{category_id}/products", response_model=List[ProductPublicResponse], summary="Listar produtos de uma categoria (público)")
+async def list_company_category_products(
+    company_slug: str,
+    category_id: int,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    """
+    **Listar Produtos Públicos de uma Categoria**
+    
+    Lista produtos de uma categoria específica sem autenticação.
+    Útil para páginas de categoria em sites/apps.
+    
+    **Parâmetros:**
+    - `company_slug`: Slug único da empresa
+    - `category_id`: ID da categoria
+    """
+    company = db.query(Company).filter(
+        Company.slug == company_slug,
+        Company.is_active == True
+    ).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empresa não encontrada"
+        )
+    
+    # Verificar se categoria existe
+    category = db.query(Category).filter(
+        Category.id == category_id,
+        Category.company_id == company.id,
+        Category.is_active == True
+    ).first()
+    
+    if not category:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Categoria não encontrada"
+        )
+    
+    products = db.query(Product).filter(
+        Product.company_id == company.id,
+        Product.category_id == category_id,
+        Product.is_active == True
+    ).offset(skip).limit(limit).all()
     
     return products
 

@@ -2,7 +2,7 @@
 Endpoints de Vendas (v1)
 Suporta cash, credit e PIX com gestão automática de estoque e parcelas
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from datetime import datetime, timedelta, date
@@ -18,6 +18,39 @@ from app.schemas.sale import SaleCreate, SaleResponse
 from app.schemas.pagination import paginate
 
 router = APIRouter()
+
+
+def get_date_range(period: str, start_date: Optional[date] = None, end_date: Optional[date] = None):
+    """
+    Helper para obter range de datas baseado no período
+    
+    Args:
+        period: 'today', 'week', 'month', 'custom'
+        start_date: Data inicial para período customizado
+        end_date: Data final para período customizado
+    
+    Returns:
+        Tupla (start_date, end_date)
+    """
+    today = date.today()
+    
+    if period == "today":
+        return today, today + timedelta(days=1)
+    elif period == "week":
+        start = today - timedelta(days=today.weekday())
+        return start, start + timedelta(days=7)
+    elif period == "month":
+        if today.month == 12:
+            next_month = date(today.year + 1, 1, 1)
+        else:
+            next_month = date(today.year, today.month + 1, 1)
+        return date(today.year, today.month, 1), next_month
+    elif period == "custom":
+        if not start_date or not end_date:
+            return None, None
+        return start_date, end_date + timedelta(days=1)  # Incluir dia final
+    else:
+        return None, None
 
 
 @router.post("/", response_model=SaleResponse, status_code=status.HTTP_201_CREATED, summary="Registrar nova venda")
@@ -45,14 +78,13 @@ def create_sale(
     # Validar cliente
     customer = db.query(Customer).filter(
         Customer.id == sale_data.customer_id,
-        Customer.company_id == current_user.company_id,
-        Customer.is_active == True
+        Customer.company_id == current_user.company_id
     ).first()
     
     if not customer:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cliente não encontrado ou inativo"
+            detail="Cliente não encontrado"
         )
     
     # Validar e processar itens
@@ -62,8 +94,7 @@ def create_sale(
     for item_data in sale_data.items:
         product = db.query(Product).filter(
             Product.id == item_data.product_id,
-            Product.company_id == current_user.company_id,
-            Product.is_active == True
+            Product.company_id == current_user.company_id
         ).first()
         
         if not product:
@@ -203,20 +234,318 @@ def create_sale(
     return sale
 
 
-@router.get("/", response_model=List[dict], summary="Listar vendas da empresa")
+# FastAPI processa rotas na ordem de definição, então rotas com paths dinâmicos devem vir por último
+
+# Ordem correta: /by-customer/{}/products -> /by-customer/{} -> /products/top-sellers -> / -> /{id}
+
+@router.get("/by-customer/{customer_id}/products", response_model=List[dict], summary="Produtos que cliente comprou")
+def get_customer_purchased_products(
+    customer_id: int,
+    skip: int = Query(0, ge=0, description="Pular N registros"),
+    limit: int = Query(50, ge=1, le=200, description="Quantidade de registros (máximo 200)"),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Produtos que Cliente Já Comprou**
+    
+    Lista todos os produtos distintos que um cliente específico já comprou, ordenados 
+    por frequência de compra (produtos mais comprados primeiro).
+    
+    **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
+    
+    **Utilidade:** Útil para sugestões de venda e análise de preferências.
+    
+    **Retorna:** 
+    - `product_id`: ID do produto
+    - `product_name`: Nome do produto
+    - `brand`: Marca do produto
+    - `times_purchased`: Quantas vezes foi comprado
+    - `total_quantity`: Quantidade total comprada
+    - `last_purchase_date`: Data da última compra
+    - `total_spent`: Total gasto neste produto
+    
+    **Exemplo:** GET /sales/by-customer/123/products?skip=0&limit=50
+    """
+    # Verificar se cliente existe e pertence à empresa
+    customer = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id
+    ).first()
+    
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente não encontrado"
+        )
+    
+    # Query para obter produtos comprados pelo cliente com estatísticas
+    from sqlalchemy import func, desc
+    
+    products_purchased = db.query(
+        SaleItem.product_id,
+        Product.name.label("product_name"),
+        Product.brand,
+        func.count(SaleItem.id).label("times_purchased"),
+        func.sum(SaleItem.quantity).label("total_quantity"),
+        func.max(Sale.created_at).label("last_purchase_date"),
+        func.sum(SaleItem.total_price).label("total_spent")
+    ).join(Sale, SaleItem.sale_id == Sale.id)\
+     .join(Product, SaleItem.product_id == Product.id)\
+     .filter(
+        Sale.customer_id == customer_id,
+        Sale.company_id == current_user.company_id,
+        Sale.status == SaleStatus.COMPLETED
+     ).group_by(SaleItem.product_id, Product.name, Product.brand)\
+     .order_by(desc("times_purchased"))\
+     .offset(skip)\
+     .limit(limit)\
+     .all()
+    
+    return [
+        {
+            "product_id": item[0],
+            "product_name": item[1],
+            "brand": item[2],
+            "times_purchased": item[3],
+            "total_quantity": item[4],
+            "last_purchase_date": item[5],
+            "total_spent": float(item[6]) if item[6] else 0.0
+        }
+        for item in products_purchased
+    ]
+
+
+@router.get("/by-customer/{customer_id}", response_model=dict, summary="Histórico completo de vendas por cliente")
+def get_customer_sales_history(
+    customer_id: int,
+    skip: int = Query(0, ge=0, description="Pular N registros"),
+    limit: int = Query(20, ge=1, le=100, description="Quantidade de registros (máximo 100)"),
+    sort: str = Query("date_desc", regex="^(date_desc|date_asc|amount_desc|amount_asc)$"),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Histórico Detalhado de Vendas por Cliente**
+    
+    Retorna todas as vendas de um cliente com estatísticas consolidadas e análise completa.
+    
+    **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
+    
+    **Parâmetros:**
+    - `sort`: Ordenação dos resultados
+      - `date_desc`: Data mais recente primeiro (padrão)
+      - `date_asc`: Data mais antiga primeiro
+      - `amount_desc`: Maior valor primeiro
+      - `amount_asc`: Menor valor primeiro
+    
+    **Retorna Objeto com:**
+    - `customer`: Dados básicos do cliente
+    - `statistics`: Estatísticas consolidadas (total gasto, ticket médio, etc)
+    - `sales`: Lista paginada de vendas detalhadas
+    - `metadata`: Informações de paginação
+    
+    **Exemplo:** GET /sales/by-customer/123?sort=date_desc&limit=20
+    """
+    # Verificar se cliente existe e pertence à empresa
+    customer = db.query(Customer).filter(
+        Customer.id == customer_id,
+        Customer.company_id == current_user.company_id
+    ).first()
+    
+    if not customer:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Cliente não encontrado"
+        )
+    
+    # Query base
+    base_query = db.query(Sale).filter(
+        Sale.customer_id == customer_id,
+        Sale.company_id == current_user.company_id
+    )
+    
+    # Ordenação
+    from sqlalchemy import desc, asc
+    sort_mapping = {
+        "date_desc": desc(Sale.created_at),
+        "date_asc": asc(Sale.created_at),
+        "amount_desc": desc(Sale.total_amount),
+        "amount_asc": asc(Sale.total_amount),
+    }
+    query = base_query.order_by(sort_mapping[sort])
+    
+    # Contar total
+    total_sales = query.count()
+    
+    # Paginação
+    sales = query.offset(skip).limit(limit).all()
+    
+    # Calcular estatísticas
+    completed_sales = base_query.filter(Sale.status == SaleStatus.COMPLETED).all()
+    
+    total_spent = sum(sale.total_amount for sale in completed_sales)
+    completed_count = len(completed_sales)
+    
+    stats = {
+        "total_sales": total_sales,
+        "completed_sales": completed_count,
+        "total_spent": float(total_spent),
+        "average_ticket": float(total_spent / completed_count) if completed_count > 0 else 0.0,
+        "total_items_purchased": sum(
+            sum(item.quantity for item in sale.items) 
+            for sale in completed_sales
+        ),
+        "first_purchase_date": min(
+            (sale.created_at for sale in completed_sales), 
+            default=None
+        ),
+        "last_purchase_date": max(
+            (sale.created_at for sale in completed_sales), 
+            default=None
+        ) if completed_sales else None,
+        "most_used_payment": max(
+            set((sale.payment_type for sale in completed_sales)),
+            key=lambda x: sum(1 for s in completed_sales if s.payment_type == x),
+            default=None
+        ) if completed_sales else None
+    }
+    
+    # Converter vendas para dicionário
+    sales_data = [SaleResponse.model_validate(sale).model_dump() for sale in sales]
+    
+    return {
+        "customer": {
+            "id": customer.id,
+            "name": customer.name,
+            "email": customer.email,
+            "phone": customer.phone,
+            "cpf": customer.cpf
+        },
+        "statistics": stats,
+        "sales": sales_data,
+        "metadata": {
+            "total": total_sales,
+            "page": skip // limit + 1 if limit > 0 else 1,
+            "limit": limit,
+            "skip": skip,
+            "has_next": (skip + limit) < total_sales,
+            "has_prev": skip > 0
+        }
+    }
+
+
+@router.get("/products/top-sellers", response_model=list, summary="Produtos mais vendidos")
+def get_top_selling_products(
+    customer_id: Optional[int] = Query(None, description="Filtrar por cliente (opcional)"),
+    metric: str = Query("quantity", regex="^(quantity|revenue)$"),
+    limit: int = Query(20, ge=1, le=100, description="Quantidade de produtos (máximo 100)"),
+    period: Optional[str] = Query("month", description="Período: today, week, month, custom"),
+    start_date: Optional[date] = Query(None, description="Data inicial (para period=custom)"),
+    end_date: Optional[date] = Query(None, description="Data final (para period=custom)"),
+    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Produtos Mais Vendidos (Top Sellers)**
+    
+    Ranking de produtos mais vendidos por quantidade ou faturamento em um período.
+    
+    **PERMISSÃO:** Gerente e Vendedor
+    
+    **Parâmetros:**
+    - `customer_id` (Opcional): Se fornecido, retorna produtos mais comprados por esse cliente. Se omitido, retorna mais vendidos da loja em geral.
+    - `metric`: Critério de ranking
+      - `quantity`: Quantidade de unidades vendidas (padrão)
+      - `revenue`: Faturamento total
+    - `period`: Período de análise (padrão: month)
+      - `today`: Vendas de hoje
+      - `week`: Vendas da semana atual
+      - `month`: Vendas do mês atual
+      - `custom`: Intervalo personalizado
+    - `limit`: Quantidade de produtos a retornar (máximo 100)
+    
+    **Retorna Array de Objetos com:**
+    - `product_id`: ID do produto
+    - `name`: Nome do produto
+    - `purchase_count`: Quantas vezes esteve em uma compra
+    - `quantity_sold`: Quantidade total de unidades vendidas
+    - `revenue`: Receita total gerada
+    
+    **Exemplo:** GET /sales/products/top-sellers?metric=revenue&period=month&limit=20
+    **Exemplo com Cliente:** GET /sales/products/top-sellers?customer_id=123&limit=10
+    """
+    # Determinar período
+    date_start, date_end = get_date_range(period, start_date, end_date)
+    
+    if not date_start or not date_end:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Para period=custom, informe start_date e end_date no formato YYYY-MM-DD"
+        )
+    
+    from sqlalchemy import func, desc
+    
+    # Query para top sellers
+    query = db.query(
+        Product.id,
+        Product.name,
+        func.count(Sale.id).label("purchase_count"),
+        func.sum(SaleItem.quantity).label("quantity_sold"),
+        func.sum(SaleItem.total_price).label("revenue")
+    ).join(SaleItem, Product.id == SaleItem.product_id)\
+     .join(Sale, SaleItem.sale_id == Sale.id)\
+     .filter(
+        Product.company_id == current_user.company_id,
+        Sale.company_id == current_user.company_id,
+        Sale.status == SaleStatus.COMPLETED,
+        Sale.created_at >= datetime.combine(date_start, datetime.min.time()),
+        Sale.created_at < datetime.combine(date_end, datetime.min.time())
+     )
+    
+    if customer_id:
+        query = query.filter(Sale.customer_id == customer_id)
+    
+    query = query.group_by(Product.id, Product.name)
+    
+    # Ordenar por métrica
+    if metric == "revenue":
+        query = query.order_by(desc("revenue"))
+    else:  # quantity
+        query = query.order_by(desc("quantity_sold"))
+    
+    top_products = query.limit(limit).all()
+    
+    return [
+        {
+            "product_id": item[0],
+            "name": item[1],
+            "purchase_count": item[2],
+            "quantity_sold": item[3],
+            "revenue": float(item[4]) if item[4] else 0.0
+        }
+        for item in top_products
+    ]
+
+
+@router.get("/", response_model=dict, summary="Listar vendas da empresa")
 def list_sales(
-    skip: int = 0,
-    limit: int = 10,
-    customer_id: Optional[int] = None,
-    status: Optional[str] = None,
-    payment_type: Optional[str] = None,
+    skip: int = Query(0, ge=0, description="Pular N registros"),
+    limit: int = Query(10, ge=1, le=100, description="Quantidade de registros (máximo 100)"),
+    search: Optional[str] = Query(None, description="Buscar por nome do cliente, CPF, email ou telefone"),
+    customer_id: Optional[int] = Query(None, description="Filtrar por ID do cliente"),
+    status: Optional[str] = Query(None, description="Filtrar por status (completed, cancelled)"),
+    payment_type: Optional[str] = Query(None, description="Filtrar por tipo de pagamento (cash, credit, pix)"),
+    period: Optional[str] = Query(None, description="Período: today, week, month, custom"),
+    start_date: Optional[date] = Query(None, description="Data inicial (para period=custom)"),
+    end_date: Optional[date] = Query(None, description="Data final (para period=custom)"),
     current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
     """
     **Listar Vendas da Empresa**
     
-    Lista todas as vendas com filtros opcionais.
+    Lista todas as vendas com filtros opcionais e paginação.
     
     **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
     
@@ -224,31 +553,116 @@ def list_sales(
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (padrão: 10, máximo: 100)
     
-    **Filtros:**
-    - `customer_id`: Filtrar por cliente
-    - `status`: Filtrar por status
-    - `payment_type`: Filtrar por tipo de pagamento
+    **Filtros Básicos:**
+    - `search`: Buscar por nome, CPF, email ou telefone do cliente (busca parcial)
+    - `customer_id`: Filtrar por ID do cliente exato
+    - `status`: Filtrar por status (completed, cancelled)
+    - `payment_type`: Filtrar por tipo de pagamento (cash, credit, pix)
     
-    **Resposta:** Lista de vendas
+    **Filtros de Data:**
+    - `period`: Período predefinido
+      - `today`: Vendas de hoje
+      - `week`: Vendas da semana atual (Segunda a Domingo)
+      - `month`: Vendas do mês atual
+      - `custom`: Intervalo personalizado (requer start_date e end_date)
+    - `start_date`: Data inicial para filtro customizado (formato: YYYY-MM-DD)
+    - `end_date`: Data final para filtro customizado (formato: YYYY-MM-DD)
+    
+    **Resposta:** 
+    - `total`: Total de registros
+    - `data`: Lista de vendas com cliente, itens e parcelas
+    
+    **Exemplos de Uso:**
+    - Vendas de hoje: `?period=today`
+    - Vendas da semana: `?period=week`
+    - Vendas do mês: `?period=month`
+    - Intervalo personalizado: `?period=custom&start_date=2025-01-01&end_date=2025-01-31`
+    - Buscar por cliente: `?search=silva`
+    - Combinar filtros: `?period=month&payment_type=cash&search=silva&limit=20`
     """
-    query = db.query(Sale).filter(Sale.company_id == current_user.company_id)
+    query = db.query(Sale).join(Customer, Sale.customer_id == Customer.id).filter(
+        Sale.company_id == current_user.company_id
+    )
     
+    if search:
+        search_term = f"%{search}%"
+        from sqlalchemy import or_
+        query = query.filter(
+            or_(
+                Customer.name.ilike(search_term),
+                Customer.cpf.ilike(search_term),
+                Customer.email.ilike(search_term),
+                Customer.phone.ilike(search_term)
+            )
+        )
+    
+    # Aplicar filtro de cliente por ID
     if customer_id:
         query = query.filter(Sale.customer_id == customer_id)
     
     if status:
-        query = query.filter(Sale.status == status)
+        # Normalizar: canceled -> cancelled, uppercase
+        normalized_status = status.lower()
+        if normalized_status == "canceled":
+            normalized_status = "cancelled"
+        
+        # Converter para uppercase para corresponder ao enum
+        normalized_status = normalized_status.upper()
+        
+        # Validar se é um status válido
+        try:
+            status_enum = SaleStatus[normalized_status]
+            query = query.filter(Sale.status == status_enum)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Status inválido: '{status}'. Use: completed, cancelled, pending"
+            )
     
     if payment_type:
-        query = query.filter(Sale.payment_type == payment_type)
+        # Converter para uppercase para corresponder ao enum
+        normalized_payment = payment_type.upper()
+        
+        # Validar se é um tipo de pagamento válido
+        try:
+            payment_enum = PaymentType[normalized_payment]
+            query = query.filter(Sale.payment_type == payment_enum)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de pagamento inválido: '{payment_type}'. Use: cash, credit, pix"
+            )
     
+    # Aplicar filtros de data
+    if period:
+        date_start, date_end = get_date_range(period, start_date, end_date)
+        
+        if not date_start or not date_end:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Para period=custom, informe start_date e end_date no formato YYYY-MM-DD"
+            )
+        
+        query = query.filter(
+            Sale.created_at >= datetime.combine(date_start, datetime.min.time()),
+            Sale.created_at < datetime.combine(date_end, datetime.min.time())
+        )
+    
+    # Contar total antes da paginação
+    total = query.count()
+    
+    # Ordenar por data mais recente
     query = query.order_by(Sale.created_at.desc())
     
+    # Aplicar paginação
     sales = query.offset(skip).limit(limit).all()
     
     sales_data = [SaleResponse.model_validate(sale).model_dump() for sale in sales]
     
-    return sales_data
+    return {
+        "total": total,
+        "data": sales_data
+    }
 
 
 @router.get("/{sale_id}", response_model=SaleResponse, summary="Obter dados da venda")

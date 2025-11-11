@@ -55,7 +55,9 @@ def _build_user_response(user: User, company: Company) -> UserOut:
         last_login_at=user.last_login_at,
         must_change_password=False,
         company_slug=company.slug,
-        role=normalized_role
+        role=normalized_role,
+        company_name=company.name,
+        company_logo_url=company.logo_url
     )
 
 
@@ -160,6 +162,8 @@ def login(
 
     Realiza o login do usuário com email e senha via JSON.
     Retorna access_token, refresh_token e redirect_url baseada no perfil.
+    
+    **NOVIDADE:** Agora retorna também company_name e company_logo_url para o frontend exibir dinamicamente!
     
     **Redirecionamentos por Perfil:**
     - Admin (Administrador): /companies (listar empresas)

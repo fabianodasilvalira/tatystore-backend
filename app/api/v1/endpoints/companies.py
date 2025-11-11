@@ -2,10 +2,11 @@
 Endpoints para Gerenciamento de Empresas
 CRUD com isolamento multi-tenant
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+import os
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -16,7 +17,7 @@ from app.schemas.company import CompanyCreate, CompanyUpdate, CompanyResponse, C
 from app.services.company import CompanyService
 from app.core.security import hash_password
 from app.schemas.pagination import paginate
-import os
+from app.core.storage_local import save_company_file
 
 router = APIRouter()
 
@@ -291,3 +292,81 @@ def delete_company(
     db.commit()
     
     return None
+
+
+@router.post("/{company_id}/logo", response_model=CompanyResponse, summary="Upload de logo da empresa")
+async def upload_company_logo(
+    company_id: int,
+    file: UploadFile = File(...),
+    current_user: User = Depends(require_role("admin", "Administrador", "gerente", "Gerente")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Upload de Logo da Empresa**
+    
+    Faz upload do logo da empresa.
+    
+    **PERMISSÃO:** 
+    - Admin (Administrador do Sistema): Pode fazer upload em QUALQUER empresa
+    - Gerente: Apenas na própria empresa
+    
+    **Formatos Aceitos:** JPG, PNG, WEBP
+    
+    **Tamanho Máximo:** 5MB
+    
+    **Arquivo salvo em:** `/uploads/{company_slug}/company/logo.{ext}`
+    
+    **Retorna:** Dados completos da empresa com a URL do logo atualizada
+    """
+    # Buscar empresa
+    company = db.query(Company).filter(Company.id == company_id).first()
+    
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Empresa não encontrada"
+        )
+    
+    # Verificar isolamento
+    user_role_name = current_user.role.name
+    is_admin = user_role_name.lower() in ["admin", "administrador"]
+    
+    if not is_admin and current_user.company_id != company_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso negado: você só pode fazer upload do logo da sua própria empresa"
+        )
+    
+    # Validar tipo de arquivo
+    allowed_types = ["image/jpeg", "image/png", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Apenas JPG, PNG e WEBP são permitidos"
+        )
+    
+    # Validar tamanho do arquivo (5MB)
+    contents = await file.read()
+    if len(contents) > 5 * 1024 * 1024:  # 5MB
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Arquivo muito grande. Máximo 5MB"
+        )
+    
+    file_extension = file.filename.split(".")[-1]
+    filename = f"logo.{file_extension}"
+    
+    logo_url = save_company_file(
+        company_slug=company.slug,
+        folder="company",
+        filename=filename,
+        file_bytes=contents
+    )
+    
+    # Atualizar URL do logo na empresa
+    company.logo_url = logo_url
+    company.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(company)
+    
+    return company
