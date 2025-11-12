@@ -343,6 +343,106 @@ def get_product(
     return product
 
 
+@router.get("/{product_id}/profit-analysis", summary="Análise de lucro do produto")
+def get_product_profit_analysis(
+        product_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    """
+    **Análise de Lucro do Produto**
+
+    Calcula lucro e margem de lucro de um produto considerando:
+    - Preço de venda normal vs preço de custo
+    - Preço promocional vs preço de custo (se em promoção)
+
+    **Isolamento:** Apenas produtos da mesma empresa
+
+    **Retorna:**
+    - `product_id`: ID do produto
+    - `product_name`: Nome do produto
+    - `cost_price`: Preço de custo
+    - `sale_price`: Preço de venda normal
+    - `promotional_price`: Preço promocional (se aplicável)
+    - `is_on_sale`: Se está em promoção
+    - `normal_profit`: Lucro com preço normal (sale_price - cost_price)
+    - `normal_margin_percentage`: Margem % com preço normal
+    - `promotional_profit`: Lucro com preço promocional (se aplicável)
+    - `promotional_margin_percentage`: Margem % com preço promocional (se aplicável)
+    - `active_profit`: Lucro atual considerando se está em promoção
+    - `active_margin_percentage`: Margem % atual
+
+    **Fórmulas:**
+    - Lucro = Preço de Venda - Preço de Custo
+    - Margem % = (Lucro / Preço de Venda) × 100
+
+    **Exemplo:** GET /products/123/profit-analysis
+    """
+    product = db.query(Product).filter(Product.id == product_id).first()
+
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Produto não encontrado"
+        )
+
+    # Verificar isolamento de empresa
+    if product.company_id != current_user.company_id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Produto não encontrado"
+        )
+
+    # Converter para float para cálculos
+    cost_price = float(product.cost_price)
+    sale_price = float(product.sale_price)
+    promotional_price = float(product.promotional_price) if product.promotional_price else None
+
+    # Calcular lucro e margem com preço normal
+    normal_profit = sale_price - cost_price
+    normal_margin_percentage = (normal_profit / sale_price * 100) if sale_price > 0 else 0.0
+
+    # Calcular lucro e margem com preço promocional (se aplicável)
+    promotional_profit = None
+    promotional_margin_percentage = None
+
+    if promotional_price is not None:
+        promotional_profit = promotional_price - cost_price
+        promotional_margin_percentage = (promotional_profit / promotional_price * 100) if promotional_price > 0 else 0.0
+
+    # Determinar lucro e margem ativos (considerando se está em promoção)
+    if product.is_on_sale and promotional_price is not None:
+        active_profit = promotional_profit
+        active_margin_percentage = promotional_margin_percentage
+        active_price = promotional_price
+    else:
+        active_profit = normal_profit
+        active_margin_percentage = normal_margin_percentage
+        active_price = sale_price
+
+    return {
+        "product_id": product.id,
+        "product_name": product.name,
+        "cost_price": round(cost_price, 2),
+        "sale_price": round(sale_price, 2),
+        "promotional_price": round(promotional_price, 2) if promotional_price is not None else None,
+        "is_on_sale": product.is_on_sale,
+        "normal_profit": round(normal_profit, 2),
+        "normal_margin_percentage": round(normal_margin_percentage, 2),
+        "promotional_profit": round(promotional_profit, 2) if promotional_profit is not None else None,
+        "promotional_margin_percentage": round(promotional_margin_percentage, 2) if promotional_margin_percentage is not None else None,
+        "active_profit": round(active_profit, 2),
+        "active_margin_percentage": round(active_margin_percentage, 2),
+        "active_price": round(active_price, 2),
+        "recommendation": (
+            "⚠️ ATENÇÃO: Margem promocional muito baixa!" if product.is_on_sale and promotional_margin_percentage is not None and promotional_margin_percentage < 10
+            else "✅ Margem saudável" if active_margin_percentage >= 20
+            else "⚠️ Margem baixa - considere revisar precificação" if active_margin_percentage < 15
+            else "📊 Margem aceitável"
+        )
+    }
+
+
 @router.put("/{product_id}", response_model=ProductResponse, summary="Atualizar produto")
 def update_product(
         product_id: int,

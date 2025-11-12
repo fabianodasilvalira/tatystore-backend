@@ -706,23 +706,28 @@ def get_sale(
     Retorna informações detalhadas de uma venda incluindo itens e parcelas.
     
     **PERMISSÃO:** Gerente e Vendedor (da própria empresa)
+
     """
     sale = db.query(Sale).filter(Sale.id == sale_id).first()
-    
+
     if not sale:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Venda não encontrada"
         )
-    
+
     # Verificar isolamento
     if sale.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Recurso não encontrado"
         )
-    
-    return sale
+
+    sale_data = SaleResponse.model_validate(sale).model_dump()
+    sale_data["profit"] = float(sale.profit)
+    sale_data["profit_margin_percentage"] = float(sale.profit_margin_percentage)
+
+    return sale_data
 
 
 @router.post("/{sale_id}/cancel", summary="Cancelar venda")

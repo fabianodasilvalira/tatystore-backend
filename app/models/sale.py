@@ -57,6 +57,30 @@ class Sale(Base):
     items = relationship("SaleItem", back_populates="sale", cascade="all, delete-orphan")
     installments = relationship("Installment", back_populates="sale", cascade="all, delete-orphan")
 
+    @property
+    def profit(self) -> float:
+        """
+        Calcula o lucro real da venda
+        Fórmula: Soma(preço_vendido - preço_custo) por cada item
+        """
+        total_profit = 0.0
+        for item in self.items:
+            # unit_price é o preço pelo qual foi vendido (normal ou promocional)
+            # cost_price é o preço de custo do produto
+            item_profit = (item.unit_price - item.product.cost_price) * item.quantity
+            total_profit += item_profit
+        return total_profit
+
+    @property
+    def profit_margin_percentage(self) -> float:
+        """
+        Calcula a margem de lucro percentual da venda
+        Fórmula: (Lucro / Total da Venda) × 100
+        """
+        if self.total_amount <= 0:
+            return 0.0
+        return (self.profit / self.total_amount) * 100
+
 
 class SaleItem(Base):
     __tablename__ = "sale_items"

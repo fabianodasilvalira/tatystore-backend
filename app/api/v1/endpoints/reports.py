@@ -228,13 +228,13 @@ def report_profit(
     
     for sale in sales:
         for item in sale.items:
-            product = db.query(Product).filter(Product.id == item.product_id).first()
-            if product:
-                total_cost += product.cost_price * item.quantity
-    
+            # item.product.cost_price é o custo atual do produto
+            # Usamos isso porque é o único disponível, mas idealmente deveria ser armazenado no SaleItem
+            total_cost += float(item.product.cost_price) * item.quantity
+
     profit = total_revenue - total_cost
     margin = (profit / total_revenue * 100) if total_revenue > 0 else 0
-    
+
     return {
         "period": period,
         "total_revenue": total_revenue,
@@ -254,19 +254,19 @@ def report_sold_products(
 ):
     """
     **Produtos Mais Vendidos**
-    
+
     Retorna ranking de produtos por quantidade vendida.
-    
+
     **PERMISSÃO:** Gerente e Vendedor
     """
     start_date, end_date = get_date_range(period, custom_date)
-    
+
     if not start_date:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Período inválido"
         )
-    
+
     items = db.query(
         SaleItem.product_id,
         Product.name,
@@ -282,7 +282,7 @@ def report_sold_products(
     ).group_by(SaleItem.product_id, Product.name).order_by(
         func.sum(SaleItem.quantity).desc()
     ).limit(limit).all()
-    
+
     return {
         "period": period,
         "products": [
@@ -306,7 +306,7 @@ def report_canceled_sales(
 ):
     """
     **Vendas Canceladas**
-    
+
     Retorna análise de vendas canceladas com detalhe de cada venda.
 
     **PERMISSÃO:** Gerente e Vendedor
@@ -369,21 +369,21 @@ def report_overdue(
 ):
     """
     **Parcelas Vencidas**
-    
+
     Retorna análise de parcelas em atraso.
-    
+
     **PERMISSÃO:** Gerente e Vendedor
     """
     today = date.today()
-    
+
     overdue = db.query(Installment).filter(
         Installment.company_id == current_user.company_id,
         Installment.status == InstallmentStatus.OVERDUE,
         Installment.due_date < today
     ).all()
-    
+
     total_overdue = sum(i.amount for i in overdue)
-    
+
     return {
         "overdue_count": len(overdue),
         "total_amount": total_overdue,
@@ -401,16 +401,16 @@ def report_low_stock(
 ):
     """
     **Produtos com Baixo Estoque**
-    
+
     Retorna lista de produtos abaixo do threshold.
-    
+
     **PERMISSÃO:** Gerente e Vendedor
-    
+
     **Parâmetros:**
     - `threshold`: Quantidade mínima (padrão: 5)
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (padrão: 10, máximo: 100)
-    
+
     **Resposta:** Dados paginados com metadados (total, página, total_pages, etc)
     """
     query = db.query(Product).filter(
@@ -418,11 +418,11 @@ def report_low_stock(
         Product.is_active == True,
         Product.stock_quantity <= threshold
     ).order_by(Product.stock_quantity.asc())
-    
+
     total = query.count()
-    
+
     products = query.offset(skip).limit(limit).all()
-    
+
     products_data = [
         {
             "id": p.id,
@@ -458,32 +458,32 @@ def report_sales_summary(
 ):
     """
     **Resumo de Vendas com Lucro**
-    
+
     Retorna agregação completa de vendas: receita, custo, desconto, lucro e margem.
     Ideal para Dashboard e Página de Relatórios.
-    
+
     **PERMISSÃO:** Gerente e Vendedor
-    
+
     **Parâmetros:**
     - `period`: Período predefinido (today, week, month, custom)
     - `custom_date`: Data para período custom
     - `start_date`: Data inicial customizada (sobrescreve period)
     - `end_date`: Data final customizada (sobrescreve period)
-    
+
     **Resposta:**
     - `total_revenue`: Receita bruta (soma dos itens vendidos)
     - `total_sales`: Número total de vendas
     - `total_discount`: Soma de todos os descontos
     - `average_ticket`: Ticket médio por venda
     - `total_cost`: Custo total dos produtos vendidos
-    - `profit`: Lucro bruto (receita - custo - desconto)
+    - `profit`: Lucro bruto (receita - custo)
     - `margin_percentage`: Margem de lucro em %
     - `sales`: Array de vendas para relatório
-    
+
     **Exemplo:** GET /reports/sales-summary?period=month
     """
     today = date.today()
-    
+
     # Definir datas usando período ou customizado
     if start_date and end_date:
         # Usar datas customizadas se informadas
@@ -492,20 +492,20 @@ def report_sales_summary(
     else:
         # Usar período predefinido
         query_start, query_end = get_date_range(period, custom_date)
-    
+
     if not query_start:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Período inválido"
         )
-    
+
     # Validar datas
     if query_start > query_end:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Data inicial não pode ser maior que data final"
         )
-    
+
     # Buscar todas as vendas COMPLETED no período
     sales = db.query(Sale).filter(
         Sale.company_id == current_user.company_id,
@@ -513,25 +513,25 @@ def report_sales_summary(
         Sale.created_at < datetime.combine(query_end + timedelta(days=1), datetime.min.time()),
         Sale.status == SaleStatus.COMPLETED
     ).all()
-    
+
     # Calcular métricas
     total_revenue = 0.0
     total_discount = 0.0
     total_cost = 0.0
     sales_count = len(sales)
     sales_data = []
-    
+
     for sale in sales:
         # Somar receita e desconto
         total_revenue += sale.total_amount
         total_discount += sale.discount_amount
-        
-        # Calcular custo total dos itens vendidos
+
+        # Calcular custo total usando custo do produto
         for item in sale.items:
-            product = db.query(Product).filter(Product.id == item.product_id).first()
-            if product:
-                total_cost += float(product.cost_price) * item.quantity
-        
+            # Buscar o custo atual do produto
+            # NOTA: Idealmente deveria armazenar cost_price no SaleItem na criação da venda
+            total_cost += float(item.product.cost_price) * item.quantity
+
         # Adicionar venda ao array
         sales_data.append({
             "sale_id": sale.id,
@@ -539,9 +539,8 @@ def report_sales_summary(
             "sale_date": sale.created_at.isoformat(),
             "total_amount": float(sale.total_amount)
         })
-    
-    # Calcular lucro e margem
-    profit = total_revenue - total_cost - total_discount
+
+    profit = total_revenue - total_cost
     margin_percentage = (profit / total_revenue * 100) if total_revenue > 0 else 0.0
     average_ticket = (total_revenue / sales_count) if sales_count > 0 else 0.0
     
