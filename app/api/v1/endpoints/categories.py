@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from typing import List
+from typing import List, Optional
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -9,12 +9,15 @@ from app.models.user import User
 from app.models.category import Category
 from app.models.product import Product
 from app.schemas.category import CategoryCreate, CategoryUpdate, CategoryResponse, CategoryWithProductCount
+from app.schemas.pagination import paginate
 
 router = APIRouter()
 
 
-@router.get("/", response_model=List[CategoryWithProductCount], summary="Listar categorias")
+@router.get("/", summary="Listar categorias")
 def list_categories(
+        skip: int = 0,
+        limit: Optional[int] = None,
         active_only: bool = False,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -28,14 +31,16 @@ def list_categories(
 
     **Parâmetros:**
     - `active_only`: Se True, retorna apenas categorias ativas (padrão: False)
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
 
-    **Retorna:** Lista de categorias com contagem de produtos
+    **Retorna:** Lista de categorias com contagem de produtos + metadados de paginação
     """
     query = db.query(
         Category,
         func.count(Product.id).label('product_count')
     ).outerjoin(
-        Product, 
+        Product,
         Product.category_id == Category.id
     ).filter(
         Category.company_id == current_user.company_id
@@ -44,15 +49,27 @@ def list_categories(
     if active_only:
         query = query.filter(Category.is_active == True)
 
-    results = query.all()
+    total = query.count()
 
-    return [
+    query = query.offset(skip)
+
+    if limit is None:
+        results = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 200:
+            limit = 200
+        results = query.limit(limit).all()
+
+    categories_data = [
         CategoryWithProductCount(
             **CategoryResponse.model_validate(category).model_dump(),
             product_count=count
         )
         for category, count in results
     ]
+
+    return paginate(categories_data, total, skip, limit)
 
 
 @router.get("/stats", summary="Estatísticas de categorias")
@@ -280,7 +297,7 @@ def update_category(
         )
 
     update_data = category_data.model_dump(exclude_unset=True)
-    
+
     # Verificar duplicação de nome se estiver sendo alterado
     if 'name' in update_data:
         existing = db.query(Category).filter(
@@ -288,7 +305,7 @@ def update_category(
             Category.name == update_data['name'],
             Category.id != category_id
         ).first()
-        
+
         if existing:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -339,9 +356,11 @@ def delete_category(
     return None
 
 
-@router.get("/{category_id}/products", response_model=List[dict], summary="Listar produtos da categoria")
+@router.get("/{category_id}/products", summary="Listar produtos da categoria")
 def list_category_products(
         category_id: int,
+        skip: int = 0,
+        limit: Optional[int] = None,
         active_only: bool = False,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -355,6 +374,10 @@ def list_category_products(
 
     **Parâmetros:**
     - `active_only`: Se True, retorna apenas produtos ativos (padrão: False)
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
+
+    **Retorna:** Lista de produtos com metadados de paginação
     """
     # Verificar se categoria existe e pertence à empresa
     category = db.query(Category).filter(Category.id == category_id).first()
@@ -379,15 +402,29 @@ def list_category_products(
     if active_only:
         query = query.filter(Product.is_active == True)
 
-    products = query.all()
+    total = query.count()
+
+    query = query.offset(skip)
+
+    if limit is None:
+        products = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 200:
+            limit = 200
+        products = query.limit(limit).all()
 
     from app.schemas.product import ProductResponse
-    return [ProductResponse.model_validate(p).model_dump() for p in products]
+    products_data = [ProductResponse.model_validate(p).model_dump() for p in products]
+
+    return paginate(products_data, total, skip, limit)
 
 
-@router.get("/{category_id}/products/on-sale", response_model=List[dict], summary="Produtos em promoção da categoria")
+@router.get("/{category_id}/products/on-sale", summary="Produtos em promoção da categoria")
 def list_category_products_on_sale(
         category_id: int,
+        skip: int = 0,
+        limit: Optional[int] = None,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
@@ -397,6 +434,10 @@ def list_category_products_on_sale(
     Lista apenas produtos em promoção de uma categoria específica.
 
     **Isolamento:** Apenas produtos da mesma empresa
+
+    **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
 
     **Útil para:** Criar seções de promoções por categoria
     """
@@ -415,19 +456,35 @@ def list_category_products_on_sale(
             detail="Acesso negado"
         )
 
-    products = db.query(Product).filter(
+    query = db.query(Product).filter(
         Product.category_id == category_id,
         Product.company_id == current_user.company_id,
         Product.is_on_sale == True
-    ).all()
+    )
+
+    total = query.count()
+
+    query = query.offset(skip)
+
+    if limit is None:
+        products = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 200:
+            limit = 200
+        products = query.limit(limit).all()
 
     from app.schemas.product import ProductResponse
-    return [ProductResponse.model_validate(p).model_dump() for p in products]
+    products_data = [ProductResponse.model_validate(p).model_dump() for p in products]
+
+    return paginate(products_data, total, skip, limit)
 
 
-@router.get("/{category_id}/products/low-stock", response_model=List[dict], summary="Produtos com baixo estoque da categoria")
+@router.get("/{category_id}/products/low-stock", summary="Produtos com baixo estoque da categoria")
 def list_category_products_low_stock(
         category_id: int,
+        skip: int = 0,
+        limit: Optional[int] = None,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
@@ -437,6 +494,10 @@ def list_category_products_low_stock(
     Lista produtos com estoque abaixo do mínimo em uma categoria específica.
 
     **Isolamento:** Apenas produtos da mesma empresa
+
+    **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
 
     **Útil para:** Identificar produtos para reposição por categoria
     """
@@ -455,13 +516,25 @@ def list_category_products_low_stock(
             detail="Acesso negado"
         )
 
-    products = db.query(Product).filter(
+    query = db.query(Product).filter(
         Product.category_id == category_id,
         Product.company_id == current_user.company_id,
         Product.stock_quantity <= Product.min_stock
-    ).order_by(Product.stock_quantity.asc()).all()
+    ).order_by(Product.stock_quantity.asc())
 
-    return [
+    total = query.count()
+
+    query = query.offset(skip)
+
+    if limit is None:
+        products = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 200:
+            limit = 200
+        products = query.limit(limit).all()
+
+    products_data = [
         {
             "id": p.id,
             "name": p.name,
@@ -471,3 +544,5 @@ def list_category_products_low_stock(
         }
         for p in products
     ]
+
+    return paginate(products_data, total, skip, limit)

@@ -238,11 +238,11 @@ def create_sale(
 
 # Ordem correta: /by-customer/{}/products -> /by-customer/{} -> /products/top-sellers -> / -> /{id}
 
-@router.get("/by-customer/{customer_id}/products", response_model=List[dict], summary="Produtos que cliente comprou")
+@router.get("/by-customer/{customer_id}/products", summary="Produtos que cliente comprou")
 def get_customer_purchased_products(
     customer_id: int,
     skip: int = Query(0, ge=0, description="Pular N registros"),
-    limit: int = Query(50, ge=1, le=200, description="Quantidade de registros (máximo 200)"),
+    limit: Optional[int] = Query(None, ge=1, le=200, description="Quantidade de registros (opcional, máximo 200)"),
     current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
 ):
@@ -255,6 +255,10 @@ def get_customer_purchased_products(
     **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
     
     **Utilidade:** Útil para sugestões de venda e análise de preferências.
+    
+    **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos, máximo 200)
     
     **Retorna:** 
     - `product_id`: ID do produto
@@ -282,7 +286,7 @@ def get_customer_purchased_products(
     # Query para obter produtos comprados pelo cliente com estatísticas
     from sqlalchemy import func, desc
     
-    products_purchased = db.query(
+    query = db.query(
         SaleItem.product_id,
         Product.name.label("product_name"),
         Product.brand,
@@ -297,12 +301,21 @@ def get_customer_purchased_products(
         Sale.company_id == current_user.company_id,
         Sale.status == SaleStatus.COMPLETED
      ).group_by(SaleItem.product_id, Product.name, Product.brand)\
-     .order_by(desc("times_purchased"))\
-     .offset(skip)\
-     .limit(limit)\
-     .all()
+     .order_by(desc("times_purchased"))
     
-    return [
+    total = query.count()
+    
+    query = query.offset(skip)
+    
+    if limit is None:
+        products_purchased = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 200:
+            limit = 200
+        products_purchased = query.limit(limit).all()
+    
+    result_data = [
         {
             "product_id": item[0],
             "product_name": item[1],
@@ -314,13 +327,15 @@ def get_customer_purchased_products(
         }
         for item in products_purchased
     ]
+    
+    return paginate(result_data, total, skip, limit)
 
 
-@router.get("/by-customer/{customer_id}", response_model=dict, summary="Histórico completo de vendas por cliente")
+@router.get("/by-customer/{customer_id}", summary="Histórico completo de vendas por cliente")
 def get_customer_sales_history(
     customer_id: int,
     skip: int = Query(0, ge=0, description="Pular N registros"),
-    limit: int = Query(20, ge=1, le=100, description="Quantidade de registros (máximo 100)"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Quantidade de registros (opcional, máximo 100)"),
     sort: str = Query("date_desc", regex="^(date_desc|date_asc|amount_desc|amount_asc)$"),
     current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
     db: Session = Depends(get_db)
@@ -333,6 +348,8 @@ def get_customer_sales_history(
     **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
     
     **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos, máximo 100)
     - `sort`: Ordenação dos resultados
       - `date_desc`: Data mais recente primeiro (padrão)
       - `date_asc`: Data mais antiga primeiro
@@ -379,7 +396,14 @@ def get_customer_sales_history(
     total_sales = query.count()
     
     # Paginação
-    sales = query.offset(skip).limit(limit).all()
+    query = query.offset(skip)
+    
+    if limit is not None:
+        if limit > 100:
+            limit = 100
+        query = query.limit(limit)
+    
+    sales = query.all()
     
     # Calcular estatísticas
     completed_sales = base_query.filter(Sale.status == SaleStatus.COMPLETED).all()
@@ -426,16 +450,16 @@ def get_customer_sales_history(
         "sales": sales_data,
         "metadata": {
             "total": total_sales,
-            "page": skip // limit + 1 if limit > 0 else 1,
-            "limit": limit,
+            "page": (skip // limit) + 1 if limit and limit > 0 else 1,
+            "limit": limit if limit else total_sales,
             "skip": skip,
-            "has_next": (skip + limit) < total_sales,
+            "has_next": (skip + (limit if limit else total_sales)) < total_sales,
             "has_prev": skip > 0
         }
     }
 
 
-@router.get("/products/top-sellers", response_model=list, summary="Produtos mais vendidos")
+@router.get("/products/top-sellers", summary="Produtos mais vendidos")
 def get_top_selling_products(
     customer_id: Optional[int] = Query(None, description="Filtrar por cliente (opcional)"),
     metric: str = Query("quantity", regex="^(quantity|revenue)$"),
@@ -528,10 +552,10 @@ def get_top_selling_products(
     ]
 
 
-@router.get("/", response_model=dict, summary="Listar vendas da empresa")
+@router.get("/", summary="Listar vendas da empresa")
 def list_sales(
     skip: int = Query(0, ge=0, description="Pular N registros"),
-    limit: int = Query(10, ge=1, le=100, description="Quantidade de registros (máximo 100)"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Quantidade de registros (opcional, máximo 100)"),
     search: Optional[str] = Query(None, description="Buscar por nome do cliente, CPF, email ou telefone"),
     customer_id: Optional[int] = Query(None, description="Filtrar por ID do cliente"),
     status: Optional[str] = Query(None, description="Filtrar por status (completed, cancelled)"),
@@ -551,7 +575,7 @@ def list_sales(
     
     **Paginação:**
     - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (padrão: 10, máximo: 100)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos, máximo: 100)
     
     **Filtros Básicos:**
     - `search`: Buscar por nome, CPF, email ou telefone do cliente (busca parcial)
@@ -569,8 +593,8 @@ def list_sales(
     - `end_date`: Data final para filtro customizado (formato: YYYY-MM-DD)
     
     **Resposta:** 
-    - `total`: Total de registros
     - `data`: Lista de vendas com cliente, itens e parcelas
+    - `metadata`: Metadados de paginação (total, página, has_next, has_prev)
     
     **Exemplos de Uso:**
     - Vendas de hoje: `?period=today`
@@ -655,14 +679,19 @@ def list_sales(
     query = query.order_by(Sale.created_at.desc())
     
     # Aplicar paginação
-    sales = query.offset(skip).limit(limit).all()
+    query = query.offset(skip)
+    
+    if limit is None:
+        sales = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 100:
+            limit = 100
+        sales = query.limit(limit).all()
     
     sales_data = [SaleResponse.model_validate(sale).model_dump() for sale in sales]
     
-    return {
-        "total": total,
-        "data": sales_data
-    }
+    return paginate(sales_data, total, skip, limit)
 
 
 @router.get("/{sale_id}", response_model=SaleResponse, summary="Obter dados da venda")

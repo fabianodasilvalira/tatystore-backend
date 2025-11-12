@@ -2,7 +2,7 @@
 Modelo Company - Empresas
 Multi-tenant: cada empresa é isolada
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -20,6 +20,8 @@ class Company(Base):
     phone = Column(String(20))
     address = Column(String(500))
     logo_url = Column(String(500), nullable=True)
+    
+    pix = Column(Text, nullable=True)  # Armazena JSON com pix_key, pix_type, etc
     
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

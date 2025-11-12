@@ -15,6 +15,61 @@ from app.core.storage_local import save_company_file
 
 router = APIRouter()
 
+def generate_sku(db: Session, company_id: int, product_name: str, category_id: Optional[int] = None) -> str:
+    """
+    Gera código SKU automaticamente seguindo o padrão:
+    
+    Formato: {CATEGORIA_SIGLA}-{PRIMEIRAS_LETRAS_PRODUTO}-{SEQUENCIAL}
+    Exemplo: ELE-NOTE-001, ALI-ARRO-002, GER-CAFE-015
+    
+    Regras:
+    - Categoria: 3 primeiras letras da categoria (uppercase) ou "GER" para produtos sem categoria
+    - Produto: 4 primeiras letras do nome do produto (uppercase, removendo espaços)
+    - Sequencial: Número sequencial de 3 dígitos baseado na quantidade de produtos da empresa
+    """
+    from app.models.category import Category
+    
+    # Obter sigla da categoria
+    if category_id:
+        category = db.query(Category).filter(Category.id == category_id).first()
+        category_prefix = category.name[:3].upper() if category else "GER"
+    else:
+        category_prefix = "GER"
+    
+    # Obter primeiras letras do produto (remover espaços e caracteres especiais)
+    product_clean = ''.join(c for c in product_name if c.isalnum() or c.isspace())
+    product_words = product_clean.split()
+    
+    if len(product_words) >= 2:
+        # Se tiver 2+ palavras, pegar 2 letras de cada uma das 2 primeiras
+        product_prefix = (product_words[0][:2] + product_words[1][:2]).upper()
+    else:
+        # Se tiver 1 palavra, pegar as 4 primeiras letras
+        product_prefix = product_clean[:4].upper()
+    
+    # Garantir que o prefixo do produto tenha 4 caracteres
+    product_prefix = product_prefix.ljust(4, 'X')[:4]
+    
+    # Contar produtos da empresa para gerar sequencial
+    product_count = db.query(Product).filter(Product.company_id == company_id).count()
+    sequential = str(product_count + 1).zfill(3)
+    
+    # Gerar SKU
+    sku = f"{category_prefix}-{product_prefix}-{sequential}"
+    
+    # Verificar se SKU já existe (improvável mas possível)
+    existing = db.query(Product).filter(
+        Product.company_id == company_id,
+        Product.sku == sku
+    ).first()
+    
+    # Se já existir, adicionar timestamp para garantir unicidade
+    if existing:
+        timestamp = str(int(datetime.utcnow().timestamp()))[-4:]
+        sku = f"{category_prefix}-{product_prefix}-{timestamp}"
+    
+    return sku
+
 
 @router.get("/search", response_model=List[dict], summary="Buscar produtos para venda")
 def search_products(
@@ -121,10 +176,10 @@ def get_low_stock_products(
     ]
 
 
-@router.get("/on-sale", response_model=List[dict], summary="Produtos em promoção")
+@router.get("/on-sale", summary="Produtos em promoção")
 def get_products_on_sale(
         skip: int = 0,
-        limit: int = 50,
+        limit: Optional[int] = None,
         category_id: Optional[int] = None,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -137,13 +192,12 @@ def get_products_on_sale(
     **Isolamento:** Apenas produtos da mesma empresa
 
     **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     - `category_id`: Filtrar por categoria (opcional)
 
     **Útil para:** Criar seção de promoções no site/app
     """
-    if limit > 200:
-        limit = 200
-
     query = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.is_on_sale == True
@@ -152,16 +206,25 @@ def get_products_on_sale(
     if category_id:
         query = query.filter(Product.category_id == category_id)
 
-    products = query.offset(skip).limit(limit).all()
+    total = query.count()
+    
+    if limit is None:
+        limit = total if total > 0 else 1
+        products = query.offset(skip).all()
+    else:
+        if limit > 200:
+            limit = 200
+        products = query.offset(skip).limit(limit).all()
 
-    from app.schemas.product import ProductResponse
-    return [ProductResponse.model_validate(p).model_dump() for p in products]
+    products_data = [ProductResponse.model_validate(p).model_dump() for p in products]
+    
+    return paginate(products_data, total, skip, limit)
 
 
-@router.get("/", response_model=List[dict], summary="Listar produtos da empresa")
+@router.get("/", summary="Listar produtos da empresa")
 def list_products(
         skip: int = 0,
-        limit: int = 10,
+        limit: Optional[int] = None,
         active_only: bool = False,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -176,25 +239,30 @@ def list_products(
     **Parâmetros:**
     - `active_only`: Se True, retorna apenas produtos ativos (padrão: False)
     - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (padrão: 10, máximo: 1000)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
 
-    **Resposta:** Lista de produtos com marca e imagem
+    **Resposta:** Lista de produtos com marca e imagem + metadados de paginação
 
     **Nota:** Para buscar produtos durante vendas, use /search
     """
-    if limit > 1000:
-        limit = 1000
-
     query = db.query(Product).filter(Product.company_id == current_user.company_id)
 
     if active_only:
         query = query.filter(Product.is_active == True)
 
-    products = query.offset(skip).limit(limit).all()
+    total = query.count()
+
+    if limit is None:
+        limit = total if total > 0 else 1
+        products = query.offset(skip).all()
+    else:
+        if limit > 1000:
+            limit = 1000
+        products = query.offset(skip).limit(limit).all()
 
     products_data = [ProductResponse.model_validate(product).model_dump() for product in products]
 
-    return products_data
+    return paginate(products_data, total, skip, limit)
 
 
 @router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED, summary="Criar novo produto")
@@ -207,6 +275,11 @@ def create_product(
     **Cadastrar Novo Produto**
 
     Cria um novo produto vinculado à empresa do usuário autenticado.
+    
+    **NOVIDADE:** O código SKU é gerado automaticamente se não for informado.
+    
+    **Formato SKU:** {CATEGORIA}-{PRODUTO}-{SEQUENCIAL}
+    - Exemplo: ELE-NOTE-001, ALI-ARRO-002
 
     **Requer:** Admin ou Gerente
 
@@ -214,10 +287,18 @@ def create_product(
 
     **Campos Opcionais:**
     - `brand`: Marca do produto
-    - `sku`: Código SKU
+    - `sku`: Código SKU (se não informado, será gerado automaticamente)
     - `barcode`: Código de barras
     - `description`: Descrição detalhada
     """
+    if not product_data.sku:
+        product_data.sku = generate_sku(
+            db=db,
+            company_id=current_user.company_id,
+            product_name=product_data.name,
+            category_id=product_data.category_id
+        )
+    
     # Criar produto
     product = Product(
         **product_data.model_dump(),
@@ -413,11 +494,11 @@ async def upload_product_image(
     return product
 
 
-@router.get("/by-category/{category_id}", response_model=List[dict], summary="Produtos por categoria")
+@router.get("/by-category/{category_id}", summary="Produtos por categoria")
 def get_products_by_category(
         category_id: int,
         skip: int = 0,
-        limit: int = 50,
+        limit: Optional[int] = None,
         active_only: bool = False,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -428,10 +509,12 @@ def get_products_by_category(
     Lista produtos de uma categoria específica.
 
     **Isolamento:** Apenas produtos da mesma empresa
+    
+    **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
+    - `active_only`: Se True, retorna apenas produtos ativos (padrão: False)
     """
-    if limit > 200:
-        limit = 200
-
     query = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.category_id == category_id
@@ -440,7 +523,16 @@ def get_products_by_category(
     if active_only:
         query = query.filter(Product.is_active == True)
 
-    products = query.offset(skip).limit(limit).all()
+    total = query.count()
 
-    from app.schemas.product import ProductResponse
-    return [ProductResponse.model_validate(p).model_dump() for p in products]
+    if limit is None:
+        limit = total if total > 0 else 1
+        products = query.offset(skip).all()
+    else:
+        if limit > 200:
+            limit = 200
+        products = query.offset(skip).limit(limit).all()
+
+    products_data = [ProductResponse.model_validate(p).model_dump() for p in products]
+    
+    return paginate(products_data, total, skip, limit)

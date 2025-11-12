@@ -14,6 +14,7 @@ class CompanyBase(BaseModel):
     phone: Optional[str] = None
     address: Optional[str] = None
     logo_url: Optional[str] = None
+    pix: Optional[str] = None  # JSON string com configurações PIX
     
     @field_validator('cnpj')
     @classmethod
@@ -36,6 +37,7 @@ class CompanyUpdate(BaseModel):
     address: Optional[str] = None
     is_active: Optional[bool] = None
     logo_url: Optional[str] = None
+    pix: Optional[str] = None  # JSON string com configurações PIX
 
 
 class CompanyResponse(CompanyBase):

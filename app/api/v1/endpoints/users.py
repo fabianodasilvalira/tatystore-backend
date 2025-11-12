@@ -5,7 +5,7 @@ CRUD com isolamento por empresa
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 from app.core.database import get_db
@@ -84,10 +84,10 @@ async def create_user(
     )
 
 
-@router.get("/", response_model=List[dict], summary="Listar usuários da empresa")
+@router.get("/", summary="Listar usuários da empresa")
 async def list_users(
     skip: int = 0,
-    limit: int = 10,
+    limit: Optional[int] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -100,15 +100,25 @@ async def list_users(
     
     **Paginação:**
     - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (padrão: 10, máximo: 100)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     
-    **Resposta:** Lista de usuários (inclui ativos e inativos)
+    **Resposta:** Lista de usuários (inclui ativos e inativos) com metadados de paginação
     """
     query = db.query(User).filter(
         User.company_id == current_user.company_id
     )
     
-    users = query.offset(skip).limit(limit).all()
+    total = query.count()
+    
+    query = query.offset(skip)
+    
+    if limit is None:
+        users = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 100:
+            limit = 100
+        users = query.limit(limit).all()
     
     result = [
         UserResponse(
@@ -126,7 +136,7 @@ async def list_users(
         for user in users
     ]
     
-    return result
+    return paginate(result, total, skip, limit)
 
 
 @router.get("/{user_id}", response_model=UserResponse, summary="Obter dados do usuário")

@@ -68,13 +68,13 @@ async def list_company_categories(
     ]
 
 
-@router.get("/companies/{company_slug}/products", response_model=List[ProductPublicResponse], summary="Listar produtos de uma empresa (público)")
+@router.get("/companies/{company_slug}/products", response_model=dict, summary="Listar produtos de uma empresa (público)")
 async def list_company_products(
     company_slug: str,
     search: Optional[str] = None,
     category_id: Optional[int] = None,
     skip: int = 0,
-    limit: int = 50,
+    limit: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -86,7 +86,9 @@ async def list_company_products(
     **Parâmetros:**
     - `company_slug`: Slug único da empresa
     - `search`: Buscar por nome
-    - `category_id`: Filtrar por categoria (novo)
+    - `category_id`: Filtrar por categoria
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     """
     company = db.query(Company).filter(
         Company.slug == company_slug,
@@ -110,17 +112,29 @@ async def list_company_products(
     if category_id:
         query = query.filter(Product.category_id == category_id)
     
-    products = query.offset(skip).limit(limit).all()
+    total = query.count()
     
-    return products
+    query = query.offset(skip)
+    
+    if limit is None:
+        products = query.all()
+        limit = total if total > 0 else 1
+    else:
+        products = query.limit(limit).all()
+    
+    from app.schemas.product import ProductPublicResponse
+    products_data = [ProductPublicResponse.model_validate(p).model_dump() for p in products]
+    
+    from app.schemas.pagination import paginate
+    return paginate(products_data, total, skip, limit)
 
 
-@router.get("/companies/{company_slug}/categories/{category_id}/products", response_model=List[ProductPublicResponse], summary="Listar produtos de uma categoria (público)")
+@router.get("/companies/{company_slug}/categories/{category_id}/products", response_model=dict, summary="Listar produtos de uma categoria (público)")
 async def list_company_category_products(
     company_slug: str,
     category_id: int,
     skip: int = 0,
-    limit: int = 50,
+    limit: Optional[int] = None,
     db: Session = Depends(get_db)
 ):
     """
@@ -132,6 +146,8 @@ async def list_company_category_products(
     **Parâmetros:**
     - `company_slug`: Slug único da empresa
     - `category_id`: ID da categoria
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     """
     company = db.query(Company).filter(
         Company.slug == company_slug,
@@ -157,13 +173,27 @@ async def list_company_category_products(
             detail="Categoria não encontrada"
         )
     
-    products = db.query(Product).filter(
+    query = db.query(Product).filter(
         Product.company_id == company.id,
         Product.category_id == category_id,
         Product.is_active == True
-    ).offset(skip).limit(limit).all()
+    )
     
-    return products
+    total = query.count()
+    
+    query = query.offset(skip)
+    
+    if limit is None:
+        products = query.all()
+        limit = total if total > 0 else 1
+    else:
+        products = query.limit(limit).all()
+    
+    from app.schemas.product import ProductPublicResponse
+    products_data = [ProductPublicResponse.model_validate(p).model_dump() for p in products]
+    
+    from app.schemas.pagination import paginate
+    return paginate(products_data, total, skip, limit)
 
 
 @router.get("/companies/{company_slug}/products/{product_id}", response_model=ProductPublicResponse, summary="Obter detalhes de um produto (público)")

@@ -4,7 +4,7 @@ CRUD com isolamento multi-tenant
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 import os
 
@@ -119,10 +119,10 @@ def create_company(
     )
 
 
-@router.get("/", response_model=dict, summary="Listar todas as empresas")
+@router.get("/", summary="Listar todas as empresas")
 def list_companies(
     skip: int = 0,
-    limit: int = 10,
+    limit: Optional[int] = None,
     current_user: User = Depends(require_role("admin", "Administrador")),
     db: Session = Depends(get_db)
 ):
@@ -137,7 +137,7 @@ def list_companies(
     
     **Paginação:**
     - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (padrão: 10, máximo: 100)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     
     **Resposta:** Dados paginados com metadados (total, página, total_pages, etc)
     """
@@ -145,7 +145,15 @@ def list_companies(
     
     total = query.count()
     
-    companies = query.offset(skip).limit(limit).all()
+    query = query.offset(skip)
+    
+    if limit is None:
+        companies = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 100:
+            limit = 100
+        companies = query.limit(limit).all()
     
     companies_data = []
     for company in companies:

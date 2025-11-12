@@ -69,10 +69,10 @@ async def create_customer(
     return customer
 
 
-@router.get("/", response_model=List[dict], summary="Listar clientes da empresa")
+@router.get("/", summary="Listar clientes da empresa")
 async def list_customers(
     skip: int = 0,
-    limit: int = 10,
+    limit: Optional[int] = None,
     search: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -85,9 +85,9 @@ async def list_customers(
     **Parâmetros:**
     - `search`: Buscar por nome ou CPF
     - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (padrão: 10, máximo: 100)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     
-    **Resposta:** Lista de clientes
+    **Resposta:** Lista de clientes com metadados de paginação
     """
     query = db.query(Customer).filter(
         Customer.company_id == current_user.company_id
@@ -99,7 +99,17 @@ async def list_customers(
             (Customer.cpf.ilike(f"%{search}%"))
         )
     
-    customers = query.offset(skip).limit(limit).all()
+    total = query.count()
+    
+    query = query.offset(skip)
+    
+    if limit is None:
+        customers = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 100:
+            limit = 100
+        customers = query.limit(limit).all()
     
     result = []
     for customer in customers:
@@ -113,7 +123,7 @@ async def list_customers(
             "total_debt": float(total_due)
         })
     
-    return result
+    return paginate(result, total, skip, limit)
 
 
 @router.get("/{customer_id}", response_model=dict, summary="Obter dados do cliente")

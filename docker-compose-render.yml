@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+  db:
+    container_name: tatystore-backend-db
+    image: postgres:14
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tatystore
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - tatystore-network
+
+  api:
+    container_name: tatystore-backend-api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: tatystore-backend:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env                 # <--- Usa o arquivo .env (produção ou dev)
+    volumes:
+      - ./uploads:/app/uploads
+    ports:
+      - "8080:8080"
+    networks:
+      - tatystore-network
+
+volumes:
+  pg_data:
+  uploads:
+
+networks:
+  tatystore-network:
+    driver: bridge

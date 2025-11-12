@@ -12,22 +12,27 @@ from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.models.installment import Installment, InstallmentStatus
 from app.schemas.installment import InstallmentResponse
+from app.schemas.pagination import paginate
 
 router = APIRouter()
 
-@router.get("/overdue", response_model=List[InstallmentResponse], summary="Listar parcelas vencidas")
+@router.get("/overdue", summary="Listar parcelas vencidas")
 def list_overdue_installments(
     skip: int = 0,
-    limit: int = 10,
+    limit: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Listar Parcelas Vencidas
+    
+    **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     """
     today = date.today()
 
-    installments = (
+    query = (
         db.query(Installment)
         .filter(
             Installment.company_id == current_user.company_id,
@@ -35,17 +40,27 @@ def list_overdue_installments(
             Installment.due_date < today,
         )
         .order_by(Installment.due_date.asc())
-        .offset(skip)
-        .limit(limit)
-        .all()
     )
-    return installments
+    
+    total = query.count()
+    
+    query = query.offset(skip)
+    
+    if limit is None:
+        installments = query.all()
+        limit = total if total > 0 else 1
+    else:
+        installments = query.limit(limit).all()
+    
+    installments_data = [InstallmentResponse.model_validate(i).model_dump() for i in installments]
+    
+    return paginate(installments_data, total, skip, limit)
 
 
-@router.get("/", response_model=List[InstallmentResponse], summary="Listar parcelas da empresa")
+@router.get("/", summary="Listar parcelas da empresa")
 def list_installments(
     skip: int = 0,
-    limit: int = 10,
+    limit: Optional[int] = None,
     customer_id: Optional[int] = None,
     status_filter: Optional[str] = None,
     current_user: User = Depends(get_current_user),
@@ -53,6 +68,12 @@ def list_installments(
 ):
     """
     Listar Parcelas da Empresa com filtros
+    
+    **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
+    - `customer_id`: Filtrar por cliente (opcional)
+    - `status_filter`: Filtrar por status (opcional)
     """
     query = db.query(Installment).filter(
         Installment.company_id == current_user.company_id
@@ -68,14 +89,21 @@ def list_installments(
         except ValueError:
             raise HTTPException(400, detail="Status inválido. Use: pending, paid, overdue, cancelled.")
 
-    installments = (
-        query.order_by(Installment.due_date.asc())
-        .offset(skip)
-        .limit(limit)
-        .all()
-    )
+    query = query.order_by(Installment.due_date.asc())
+    
+    total = query.count()
+    
+    query = query.offset(skip)
+    
+    if limit is None:
+        installments = query.all()
+        limit = total if total > 0 else 1
+    else:
+        installments = query.limit(limit).all()
 
-    return installments
+    installments_data = [InstallmentResponse.model_validate(i).model_dump() for i in installments]
+    
+    return paginate(installments_data, total, skip, limit)
 
 
 @router.get("/{installment_id}", response_model=InstallmentResponse, summary="Obter dados da parcela")
@@ -129,27 +157,40 @@ def pay_installment(
     return installment
 
 
-@router.get("/customer/{customer_id}", response_model=List[InstallmentResponse], summary="Listar parcelas do cliente")
+@router.get("/customer/{customer_id}", summary="Listar parcelas do cliente")
 def list_installments_by_customer(
     customer_id: int,
     skip: int = 0,
-    limit: int = 10,
+    limit: Optional[int] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
     Listar Parcelas por Cliente
+    
+    **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     """
-    installments = (
+    query = (
         db.query(Installment)
         .filter(
             Installment.company_id == current_user.company_id,
             Installment.customer_id == customer_id
         )
         .order_by(Installment.due_date.asc())
-        .offset(skip)
-        .limit(limit)
-        .all()
     )
+    
+    total = query.count()
+    
+    query = query.offset(skip)
+    
+    if limit is None:
+        installments = query.all()
+        limit = total if total > 0 else 1
+    else:
+        installments = query.limit(limit).all()
 
-    return installments
+    installments_data = [InstallmentResponse.model_validate(i).model_dump() for i in installments]
+    
+    return paginate(installments_data, total, skip, limit)

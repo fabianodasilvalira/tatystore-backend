@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
 from typing import Optional
 import os
+import json
 from datetime import datetime
 
 from app.core.database import get_db
@@ -45,12 +46,30 @@ async def configure_pix(
             detail="Empresa não encontrada"
         )
     
-    # Aqui é apenas demonstrativo - em produção usar banco de dados separado ou config service
+    valid_pix_types = ["cpf", "cnpj", "email", "phone", "random"]
+    if pix_type.lower() not in valid_pix_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tipo de chave PIX inválido. Valores aceitos: {', '.join(valid_pix_types)}"
+        )
+    
+    pix_config = {
+        "pix_key": pix_key,
+        "pix_type": pix_type.lower(),
+        "configured_at": datetime.utcnow().isoformat(),
+        "configured_by": current_user.email
+    }
+    
+    company.pix = json.dumps(pix_config)
+    company.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(company)
     
     return {
         "message": "Chave PIX configurada com sucesso",
         "pix_key": pix_key[:3] + "*" * (len(pix_key) - 6) + pix_key[-3:],  # Mascarar
-        "pix_type": pix_type
+        "pix_type": pix_type,
+        "configured_at": pix_config["configured_at"]
     }
 
 
@@ -84,11 +103,30 @@ async def generate_qrcode(
             detail="Recurso não encontrado"
         )
     
+    company = db.query(Company).filter(Company.id == current_user.company_id).first()
+    if not company or not company.pix:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Empresa não possui chave PIX configurada. Configure em /pix/config primeiro."
+        )
+    
+    try:
+        pix_config = json.loads(company.pix)
+        pix_key = pix_config.get("pix_key")
+        pix_type = pix_config.get("pix_type")
+    except (json.JSONDecodeError, AttributeError):
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Erro ao recuperar configurações PIX da empresa"
+        )
+    
     return {
         "sale_id": sale_id,
         "amount": sale.total_amount,
         "qrcode": f"00020126580014br.gov.bcb.pix...",  # Simulado
         "emv": "00020126580014br.gov.bcb.pix...",
+        "pix_key": pix_key[:3] + "*" * (len(pix_key) - 6) + pix_key[-3:],  # Mascarada
+        "pix_type": pix_type,
         "message": "QR Code gerado com sucesso. Apresente ao cliente para leitura."
     }
 
