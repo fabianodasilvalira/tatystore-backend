@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, date
 
@@ -77,7 +77,9 @@ def filter_installments(
     - `end_date`: Data final (formato: YYYY-MM-DD)
     - `overdue`: Filtrar apenas vencidas (true/false)
     """
-    query = db.query(Installment).filter(
+    query = db.query(Installment).options(
+        joinedload(Installment.payments)
+    ).filter(
         Installment.company_id == current_user.company_id
     )
 
@@ -140,6 +142,7 @@ def list_overdue_installments(
 
     query = (
         db.query(Installment)
+        .options(joinedload(Installment.payments))
         .filter(
             Installment.company_id == current_user.company_id,
             Installment.status == InstallmentStatus.OVERDUE,
@@ -181,7 +184,9 @@ def list_installments(
     - `customer_id`: Filtrar por cliente (opcional)
     - `status_filter`: Filtrar por status (opcional)
     """
-    query = db.query(Installment).filter(
+    query = db.query(Installment).options(
+        joinedload(Installment.payments)
+    ).filter(
         Installment.company_id == current_user.company_id
     )
 
@@ -229,6 +234,7 @@ def list_installments_by_customer(
     """
     query = (
         db.query(Installment)
+        .options(joinedload(Installment.payments))
         .filter(
             Installment.company_id == current_user.company_id,
             Installment.customer_id == customer_id
@@ -260,46 +266,14 @@ def get_installment(
     """
     Obter detalhes de uma parcela incluindo saldo pago e restante
     """
-    installment = db.query(Installment).filter(Installment.id == installment_id).first()
+    installment = db.query(Installment).options(
+        joinedload(Installment.payments)
+    ).filter(Installment.id == installment_id).first()
 
     if not installment:
         raise HTTPException(status_code=404, detail=Messages.INSTALLMENT_NOT_FOUND)
 
     if installment.company_id != current_user.company_id:
         raise HTTPException(status_code=404, detail=Messages.RESOURCE_NOT_FOUND)
-
-    return _enrich_installment_with_balance(installment)
-
-
-@router.patch("/{installment_id}/pay", summary="Marcar parcela como paga (deprecated)")
-def pay_installment(
-        installment_id: int,
-        current_user: User = Depends(require_role("admin", "gerente")),
-        db: Session = Depends(get_db)
-):
-    """
-    Marcar parcela como paga (Gerente)
-
-    **Nota:** Este endpoint foi mantido para compatibilidade.
-    Para pagamentos parciais, use POST /installment-payments/{installment_id}/pay
-    """
-    installment = db.query(Installment).filter(Installment.id == installment_id).first()
-
-    if not installment:
-        raise HTTPException(status_code=404, detail=Messages.INSTALLMENT_NOT_FOUND)
-
-    if installment.company_id != current_user.company_id:
-        raise HTTPException(status_code=404, detail=Messages.RESOURCE_NOT_FOUND)
-
-    if installment.status == InstallmentStatus.PAID:
-        raise HTTPException(status_code=400, detail=Messages.INSTALLMENT_ALREADY_PAID)
-
-    if installment.status == InstallmentStatus.CANCELLED:
-        raise HTTPException(status_code=400, detail=Messages.INSTALLMENT_CANCELLED)
-
-    installment.status = InstallmentStatus.PAID
-    installment.paid_at = datetime.utcnow()
-    db.commit()
-    db.refresh(installment)
 
     return _enrich_installment_with_balance(installment)
