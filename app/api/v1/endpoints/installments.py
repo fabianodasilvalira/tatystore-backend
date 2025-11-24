@@ -14,15 +14,16 @@ from app.schemas.pagination import paginate
 
 router = APIRouter()
 
+
 def _calculate_installment_balance(installment: Installment) -> tuple[float, float]:
     """
     Calcula total pago e saldo restante de uma parcela.
     Retorna: (total_pago, saldo_restante)
-    
+
     Esta é a função centralizada usada em todo o sistema para calcular saldos.
     """
     total_paid = sum(
-        float(p.amount_paid) for p in installment.payments 
+        float(p.amount_paid) for p in installment.payments
         if p.status == InstallmentPaymentStatus.COMPLETED
     )
     remaining = max(0.0, float(installment.amount) - total_paid)
@@ -50,22 +51,23 @@ def _enrich_installment_with_balance(installment: Installment) -> dict:
     data["payments_count"] = len(data["payments"])
     return data
 
+
 @router.get("/filter", summary="Filtrar parcelas com múltiplos critérios")
 def filter_installments(
-    skip: int = 0,
-    limit: Optional[int] = None,
-    customer_id: Optional[int] = None,
-    status: Optional[str] = None,
-    status_filter: Optional[str] = None,  # Suporte para ambos os nomes de parâmetro
-    start_date: Optional[date] = None,
-    end_date: Optional[date] = None,
-    overdue: Optional[bool] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        skip: int = 0,
+        limit: Optional[int] = None,
+        customer_id: Optional[int] = None,
+        status: Optional[str] = None,
+        status_filter: Optional[str] = None,  # Suporte para ambos os nomes de parâmetro
+        start_date: Optional[date] = None,
+        end_date: Optional[date] = None,
+        overdue: Optional[bool] = None,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """
     Filtrar Parcelas com Múltiplos Critérios
-    
+
     **Parâmetros:**
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
@@ -92,7 +94,7 @@ def filter_installments(
 
     if start_date:
         query = query.filter(Installment.due_date >= start_date)
-    
+
     if end_date:
         query = query.filter(Installment.due_date <= end_date)
 
@@ -104,11 +106,11 @@ def filter_installments(
         )
 
     query = query.order_by(Installment.due_date.asc())
-    
+
     total = query.count()
-    
+
     query = query.offset(skip)
-    
+
     if limit is None:
         installments = query.all()
         limit = total if total > 0 else 1
@@ -116,20 +118,20 @@ def filter_installments(
         installments = query.limit(limit).all()
 
     installments_data = [_enrich_installment_with_balance(i) for i in installments]
-    
+
     return paginate(installments_data, total, skip, limit)
 
 
 @router.get("/overdue", summary="Listar parcelas vencidas")
 def list_overdue_installments(
-    skip: int = 0,
-    limit: Optional[int] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        skip: int = 0,
+        limit: Optional[int] = None,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """
     Listar Parcelas Vencidas
-    
+
     **Parâmetros:**
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
@@ -145,34 +147,34 @@ def list_overdue_installments(
         )
         .order_by(Installment.due_date.asc())
     )
-    
+
     total = query.count()
-    
+
     query = query.offset(skip)
-    
+
     if limit is None:
         installments = query.all()
         limit = total if total > 0 else 1
     else:
         installments = query.limit(limit).all()
-    
+
     installments_data = [_enrich_installment_with_balance(i) for i in installments]
-    
+
     return paginate(installments_data, total, skip, limit)
 
 
 @router.get("/", summary="Listar parcelas da empresa")
 def list_installments(
-    skip: int = 0,
-    limit: Optional[int] = None,
-    customer_id: Optional[int] = None,
-    status_filter: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        skip: int = 0,
+        limit: Optional[int] = None,
+        customer_id: Optional[int] = None,
+        status_filter: Optional[str] = None,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """
     Listar Parcelas da Empresa com filtros
-    
+
     **Parâmetros:**
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
@@ -194,11 +196,11 @@ def list_installments(
             raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
 
     query = query.order_by(Installment.due_date.asc())
-    
+
     total = query.count()
-    
+
     query = query.offset(skip)
-    
+
     if limit is None:
         installments = query.all()
         limit = total if total > 0 else 1
@@ -206,21 +208,21 @@ def list_installments(
         installments = query.limit(limit).all()
 
     installments_data = [_enrich_installment_with_balance(i) for i in installments]
-    
+
     return paginate(installments_data, total, skip, limit)
 
 
 @router.get("/customer/{customer_id}", summary="Listar parcelas do cliente")
 def list_installments_by_customer(
-    customer_id: int,
-    skip: int = 0,
-    limit: Optional[int] = None,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        customer_id: int,
+        skip: int = 0,
+        limit: Optional[int] = None,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """
     Listar Parcelas por Cliente
-    
+
     **Parâmetros:**
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
@@ -233,11 +235,11 @@ def list_installments_by_customer(
         )
         .order_by(Installment.due_date.asc())
     )
-    
+
     total = query.count()
-    
+
     query = query.offset(skip)
-    
+
     if limit is None:
         installments = query.all()
         limit = total if total > 0 else 1
@@ -245,15 +247,15 @@ def list_installments_by_customer(
         installments = query.limit(limit).all()
 
     installments_data = [_enrich_installment_with_balance(i) for i in installments]
-    
+
     return paginate(installments_data, total, skip, limit)
 
 
 @router.get("/{installment_id}", summary="Obter dados da parcela")
 def get_installment(
-    installment_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        installment_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """
     Obter detalhes de uma parcela incluindo saldo pago e restante
@@ -271,13 +273,13 @@ def get_installment(
 
 @router.patch("/{installment_id}/pay", summary="Marcar parcela como paga (deprecated)")
 def pay_installment(
-    installment_id: int,
-    current_user: User = Depends(require_role("admin", "gerente")),
-    db: Session = Depends(get_db)
+        installment_id: int,
+        current_user: User = Depends(require_role("admin", "gerente")),
+        db: Session = Depends(get_db)
 ):
     """
     Marcar parcela como paga (Gerente)
-    
+
     **Nota:** Este endpoint foi mantido para compatibilidade.
     Para pagamentos parciais, use POST /installment-payments/{installment_id}/pay
     """
