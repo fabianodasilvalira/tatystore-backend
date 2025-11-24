@@ -15,7 +15,9 @@ from app.models.user import User
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.product import Product
 from app.models.installment import Installment, InstallmentStatus
+from app.models.installment_payment import InstallmentPayment, InstallmentPaymentStatus
 from app.services.reports_service import ReportsService
+from app.api.v1.endpoints.installments import _calculate_installment_balance
 from app.schemas.pagination import paginate
 
 router = APIRouter()
@@ -42,7 +44,7 @@ def get_date_range(period: str, custom_date: Optional[date] = None):
 def report_sales(
     period: str = "month",
     custom_date: Optional[date] = None,
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -50,7 +52,7 @@ def report_sales(
     
     Retorna resumo de vendas por período.
     
-    **PERMISSÃO:** Gerente e Vendedor
+    **PERMISSÃO:** Gerente, Vendedor e Admin
     
     **Períodos:**
     - `today`: Hoje
@@ -90,10 +92,10 @@ def report_sales(
 
 @router.get("/sales-over-time", summary="Vendas ao longo do tempo")
 def report_sales_over_time(
-    period: str = Query("week", regex="^(day|week|month)$", description="Granularidade: day, week, month"),
+    period: str = Query("week", pattern="^(day|week|month)$", description="Granularidade: day, week, month"),
     start_date: Optional[date] = Query(None, description="Data inicial (padrão: 30 dias atrás)"),
     end_date: Optional[date] = Query(None, description="Data final (padrão: hoje)"),
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -102,7 +104,7 @@ def report_sales_over_time(
     Analisa tendência de vendas agregando dados por dia, semana ou mês.
     Útil para visualizar crescimento e padrões de vendas.
     
-    **PERMISSÃO:** Gerente e Vendedor
+    **PERMISSÃO:** Gerente, Vendedor e Admin
     
     **Parâmetros:**
     - `period`: Granularidade de agregação
@@ -198,7 +200,7 @@ def report_sales_over_time(
 def report_profit(
     period: str = "month",
     custom_date: Optional[date] = None,
-    current_user: User = Depends(require_role("gerente", "Gerente")),
+    current_user: User = Depends(require_role("admin", "gerente")),
     db: Session = Depends(get_db)
 ):
     """
@@ -206,7 +208,7 @@ def report_profit(
     
     Retorna análise de custo vs receita por período.
     
-    **PERMISSÃO:** Apenas Gerente (acesso total aos dados financeiros)
+    **PERMISSÃO:** Admin e Gerente (acesso total aos dados financeiros)
     """
     start_date, end_date = get_date_range(period, custom_date)
     
@@ -249,7 +251,7 @@ def report_sold_products(
     period: str = "month",
     custom_date: Optional[date] = None,
     limit: int = 10,
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -257,7 +259,7 @@ def report_sold_products(
 
     Retorna ranking de produtos por quantidade vendida.
 
-    **PERMISSÃO:** Gerente e Vendedor
+    **PERMISSÃO:** Admin, Gerente e Vendedor
     """
     start_date, end_date = get_date_range(period, custom_date)
 
@@ -301,7 +303,7 @@ def report_sold_products(
 def report_canceled_sales(
     period: str = "month",
     custom_date: Optional[date] = None,
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -309,7 +311,7 @@ def report_canceled_sales(
 
     Retorna análise de vendas canceladas com detalhe de cada venda.
 
-    **PERMISSÃO:** Gerente e Vendedor
+    **PERMISSÃO:** Admin, Gerente e Vendedor
 
     **Parâmetros:**
     - `period`: Período predefinido (today, week, month, custom)
@@ -364,7 +366,7 @@ def report_canceled_sales(
 
 @router.get("/overdue", summary="Parcelas vencidas")
 def report_overdue(
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -372,7 +374,7 @@ def report_overdue(
 
     Retorna análise de parcelas em atraso.
 
-    **PERMISSÃO:** Gerente e Vendedor
+    **PERMISSÃO:** Admin, Gerente e Vendedor
     """
     today = date.today()
 
@@ -382,7 +384,7 @@ def report_overdue(
         Installment.due_date < today
     ).all()
 
-    total_overdue = sum(i.amount for i in overdue)
+    total_overdue = sum(_calculate_installment_balance(i)[1] for i in overdue)
 
     return {
         "overdue_count": len(overdue),
@@ -391,12 +393,91 @@ def report_overdue(
     }
 
 
+@router.get("/overdue-customers", summary="Clientes com parcelas vencidas")
+def report_overdue_customers(
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
+    db: Session = Depends(get_db)
+):
+    """
+    **Clientes com Parcelas Vencidas**
+    
+    Identifica todos os clientes com parcelas não pagas após a data de vencimento.
+    Útil para gestão de cobrança e análise de risco de crédito.
+    
+    **PERMISSÃO:** Admin, Gerente e Vendedor
+    
+    **Resposta:**
+    - `overdue_count`: Número de clientes únicos com débito
+    - `total_amount`: Soma total de todas as parcelas vencidas (apenas saldo restante)
+    - `oldest_date`: Data de vencimento mais antiga
+    - `customers`: Array de clientes com débito
+      - `id`: ID do cliente
+      - `name`: Nome do cliente
+      - `phone`: Telefone para contato
+      - `total_debt`: Soma das parcelas vencidas deste cliente (saldo restante)
+    
+    **Exemplo:** GET /reports/overdue-customers
+    """
+    today = date.today()
+    
+    # Buscar todas as parcelas com status OVERDUE
+    overdue_installments = db.query(Installment).filter(
+        Installment.company_id == current_user.company_id,
+        Installment.status == InstallmentStatus.OVERDUE,
+        Installment.due_date < today
+    ).all()
+    
+    # Agrupar por cliente
+    customers_debt = {}
+    total_overdue_amount = 0.0
+    oldest_date = None
+    
+    for installment in overdue_installments:
+        _, remaining = _calculate_installment_balance(installment)
+        total_overdue_amount += remaining
+        
+        # Atualizar data mais antiga
+        if oldest_date is None or installment.due_date < oldest_date:
+            oldest_date = installment.due_date
+        
+        # Agrupar por cliente
+        customer_id = installment.customer_id
+        if customer_id not in customers_debt:
+            customers_debt[customer_id] = {
+                "customer": installment.customer,
+                "total_debt": 0.0
+            }
+        
+        customers_debt[customer_id]["total_debt"] += remaining
+    
+    # Formatar resposta com dados de clientes
+    customers_list = []
+    for customer_id, debt_info in customers_debt.items():
+        customer = debt_info["customer"]
+        customers_list.append({
+            "id": customer.id,
+            "name": customer.name,
+            "phone": customer.phone or "N/A",
+            "total_debt": round(debt_info["total_debt"], 2)
+        })
+    
+    # Ordenar por maior débito
+    customers_list.sort(key=lambda x: x["total_debt"], reverse=True)
+    
+    return {
+        "overdue_count": len(customers_debt),
+        "total_amount": round(total_overdue_amount, 2),
+        "oldest_date": oldest_date.isoformat() if oldest_date else None,
+        "customers": customers_list
+    }
+
+
 @router.get("/low-stock", response_model=dict, summary="Produtos com baixo estoque")
 def report_low_stock(
     threshold: int = 5,
     skip: int = 0,
     limit: int = 10,
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -404,7 +485,7 @@ def report_low_stock(
 
     Retorna lista de produtos abaixo do threshold.
 
-    **PERMISSÃO:** Gerente e Vendedor
+    **PERMISSÃO:** Admin, Gerente e Vendedor
 
     **Parâmetros:**
     - `threshold`: Quantidade mínima (padrão: 5)
@@ -453,7 +534,7 @@ def report_sales_summary(
     custom_date: Optional[date] = Query(None, description="Data específica para período custom"),
     start_date: Optional[date] = Query(None, description="Data inicial (sobrescreve period)"),
     end_date: Optional[date] = Query(None, description="Data final (sobrescreve period)"),
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -462,7 +543,7 @@ def report_sales_summary(
     Retorna agregação completa de vendas: receita, custo, desconto, lucro e margem.
     Ideal para Dashboard e Página de Relatórios.
 
-    **PERMISSÃO:** Gerente e Vendedor
+    **PERMISSÃO:** Admin, Gerente e Vendedor
 
     **Parâmetros:**
     - `period`: Período predefinido (today, week, month, custom)
@@ -553,82 +634,4 @@ def report_sales_summary(
         "profit": round(profit, 2),
         "margin_percentage": round(margin_percentage, 2),
         "sales": sales_data
-    }
-
-
-@router.get("/overdue-customers", summary="Clientes com parcelas vencidas")
-def report_overdue_customers(
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
-    db: Session = Depends(get_db)
-):
-    """
-    **Clientes com Parcelas Vencidas**
-    
-    Identifica todos os clientes com parcelas não pagas após a data de vencimento.
-    Útil para gestão de cobrança e análise de risco de crédito.
-    
-    **PERMISSÃO:** Gerente e Vendedor
-    
-    **Resposta:**
-    - `overdue_count`: Número de clientes únicos com débito
-    - `total_amount`: Soma total de todas as parcelas vencidas
-    - `oldest_date`: Data de vencimento mais antiga
-    - `customers`: Array de clientes com débito
-      - `id`: ID do cliente
-      - `name`: Nome do cliente
-      - `phone`: Telefone para contato
-      - `total_debt`: Soma das parcelas vencidas deste cliente
-    
-    **Exemplo:** GET /reports/overdue-customers
-    """
-    today = date.today()
-    
-    # Buscar todas as parcelas com status OVERDUE
-    overdue_installments = db.query(Installment).filter(
-        Installment.company_id == current_user.company_id,
-        Installment.status == InstallmentStatus.OVERDUE,
-        Installment.due_date < today
-    ).all()
-    
-    # Agrupar por cliente
-    customers_debt = {}
-    total_overdue_amount = 0.0
-    oldest_date = None
-    
-    for installment in overdue_installments:
-        total_overdue_amount += installment.amount
-        
-        # Atualizar data mais antiga
-        if oldest_date is None or installment.due_date < oldest_date:
-            oldest_date = installment.due_date
-        
-        # Agrupar por cliente
-        customer_id = installment.customer_id
-        if customer_id not in customers_debt:
-            customers_debt[customer_id] = {
-                "customer": installment.customer,
-                "total_debt": 0.0
-            }
-        
-        customers_debt[customer_id]["total_debt"] += installment.amount
-    
-    # Formatar resposta com dados de clientes
-    customers_list = []
-    for customer_id, debt_info in customers_debt.items():
-        customer = debt_info["customer"]
-        customers_list.append({
-            "id": customer.id,
-            "name": customer.name,
-            "phone": customer.phone or "N/A",
-            "total_debt": round(debt_info["total_debt"], 2)
-        })
-    
-    # Ordenar por maior débito
-    customers_list.sort(key=lambda x: x["total_debt"], reverse=True)
-    
-    return {
-        "overdue_count": len(customers_debt),
-        "total_amount": round(total_overdue_amount, 2),
-        "oldest_date": oldest_date.isoformat() if oldest_date else None,
-        "customers": customers_list
     }

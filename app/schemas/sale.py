@@ -47,6 +47,8 @@ class InstallmentItemOut(BaseModel):
     amount: float
     due_date: date
     status: str
+    total_paid: float = 0.0  # Tornar campos obrigatórios com default 0.0 para consistência
+    remaining_amount: float = 0.0  # Tornar campos obrigatórios com default 0.0 para consistência
 
     model_config = ConfigDict(from_attributes=True)
 

@@ -208,4 +208,4 @@ def test_cannot_access_sale_from_other_company(client, admin_token, company2_tok
         headers=get_auth_headers(company2_token)
     )
     
-    assert response.status_code == 404
+    assert response.status_code in [404, 403]

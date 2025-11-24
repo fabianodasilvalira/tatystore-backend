@@ -23,10 +23,10 @@ security = HTTPBearer(
 
 ROLE_MAPPING = {
     # Aliases em minúsculo -> Nomes completos no banco
-    "admin": ["Administrador", "admin"],
-    "gerente": ["Gerente", "gerente"],
-    "vendedor": ["Vendedor", "vendedor"],
-    "usuario": ["usuario"],
+    "admin": ["Administrador", "admin", "Admin"],
+    "gerente": ["Gerente", "gerente", "Manager"],
+    "vendedor": ["Vendedor", "vendedor", "Seller"],
+    "usuario": ["usuario", "User"],
 }
 
 def get_current_user(
@@ -129,20 +129,23 @@ def require_role(*allowed_roles: str):
     Decorator para exigir roles específicos
     Uso: current_user: User = Depends(require_role("admin", "gerente"))
     
-    Aceita tanto aliases ("admin", "gerente", "vendedor") quanto nomes completos
-    ("Administrador", "Gerente", "Vendedor")
+    Aceita aliases em minúsculo: "admin", "gerente", "vendedor"
+    
+    Melhorado: agora faz busca case-insensitive contra ROLE_MAPPING
     """
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         user_role_name = current_user.role.name
         
-        # Verificar se o role do usuário está em algum dos mapeamentos de roles permitidos
         for allowed_role in allowed_roles:
-            # Buscar possíveis nomes de roles no mapeamento
-            possible_names = ROLE_MAPPING.get(allowed_role.lower(), [allowed_role])
+            allowed_role_lower = allowed_role.lower()
             
-            # Verificar correspondência case-insensitive
-            if user_role_name in possible_names or user_role_name.lower() == allowed_role.lower():
-                return current_user
+            # Obter lista de nomes possíveis para este alias
+            possible_names = ROLE_MAPPING.get(allowed_role_lower, [allowed_role])
+            
+            # Verificar se o role do usuário corresponde a qualquer nome possível (case-insensitive)
+            for possible_name in possible_names:
+                if user_role_name.lower() == possible_name.lower():
+                    return current_user
         
         # Se não encontrou correspondência, negar acesso
         raise HTTPException(

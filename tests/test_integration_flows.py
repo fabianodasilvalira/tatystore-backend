@@ -89,7 +89,13 @@ class TestCreditSaleAndPaymentFlow:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        installments = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            installments = response_data["items"]
+        else:
+            installments = response_data
+        
         assert len(installments) >= 3
         
         # 3. Pagar primeira parcela
@@ -128,7 +134,12 @@ class TestCreditSaleAndPaymentFlow:
             f"/api/v1/installments/customer/{test_customer.id}",
             headers={"Authorization": f"Bearer {manager_token}"}
         )
-        installments = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            installments = response_data["items"]
+        else:
+            installments = response_data
         
         # Pagar 3 de 5 parcelas
         for i in range(3):

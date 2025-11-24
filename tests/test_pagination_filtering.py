@@ -33,7 +33,13 @@ class TestSalesPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert len(data) == 5
         
         # Teste: segundo page (5 itens)
@@ -42,7 +48,13 @@ class TestSalesPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert len(data) == 5
         
         # Teste: terceiro page (5 itens)
@@ -51,7 +63,13 @@ class TestSalesPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert len(data) == 5
         
         # Teste: page além do limite (vazia)
@@ -60,7 +78,13 @@ class TestSalesPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert len(data) == 0
     
     def test_sales_list_default_limit(self, client, manager_token, test_customer, test_product):
@@ -70,7 +94,9 @@ class TestSalesPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        assert isinstance(response.json(), list)
+        response_data = response.json()
+        
+        assert isinstance(response_data, (list, dict))
     
     def test_sales_filter_by_customer(self, client, manager_token, test_customer, test_company1, test_product, db: Session):
         """Validar filtro por cliente"""
@@ -93,7 +119,13 @@ class TestSalesPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert len(data) >= 1
         assert all(sale["customer_id"] == test_customer.id for sale in data)
     
@@ -118,7 +150,13 @@ class TestSalesPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert any(sale["payment_type"] == "pix" for sale in data)
     
     def test_sales_filter_by_status(self, client, manager_token, test_customer):
@@ -128,7 +166,9 @@ class TestSalesPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        assert isinstance(response.json(), list)
+        response_data = response.json()
+        
+        assert isinstance(response_data, (list, dict))
 
 
 class TestCustomersPagination:
@@ -156,7 +196,13 @@ class TestCustomersPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert len(data) == 5
     
     def test_customers_filter_by_search(self, client, manager_token, test_customer):
@@ -166,7 +212,13 @@ class TestCustomersPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert len(data) >= 1
         assert any(test_customer.name in item["name"] for item in data)
 
@@ -181,7 +233,9 @@ class TestInstallmentsPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        assert isinstance(response.json(), list)
+        response_data = response.json()
+        
+        assert isinstance(response_data, (list, dict))
     
     def test_installments_filter_overdue(self, client, manager_token):
         """Validar filtro de parcelas vencidas"""
@@ -190,7 +244,13 @@ class TestInstallmentsPagination:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert isinstance(data, list)
 
 

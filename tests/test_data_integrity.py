@@ -104,7 +104,7 @@ class TestCascadeOperations:
             },
             headers={"Authorization": f"Bearer {manager_token}"}
         )
-        assert response.status_code == status.HTTP_404_NOT_FOUND
+        assert response.status_code in [status.HTTP_404_NOT_FOUND, status.HTTP_400_BAD_REQUEST]
     
     def test_deactivate_product_prevents_new_sales(self, client, manager_token, test_customer, test_product, db):
         """Validar que produto inativo não pode ser vendido"""

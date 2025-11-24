@@ -40,3 +40,5 @@ class Installment(Base):
     sale = relationship("Sale", back_populates="installments")
     customer = relationship("Customer", back_populates="installments")
     company = relationship("Company")
+    # <CHANGE> Adicionado relacionamento com pagamentos parciais
+    payments = relationship("InstallmentPayment", back_populates="installment", cascade="all, delete-orphan")

@@ -6,6 +6,7 @@ class SaleItemIn(BaseModel):
     product_id: int
     quantity: int = Field(ge=1)
 
+
 class SaleCreate(BaseModel):
     customer_id: int
     items: List[SaleItemIn]
@@ -27,6 +28,8 @@ class InstallmentOut(BaseModel):
     amount: float
     due_date: date
     status: str
+    total_paid: Optional[float] = None
+    remaining_amount: Optional[float] = None
     
     model_config = ConfigDict(from_attributes=True)
 

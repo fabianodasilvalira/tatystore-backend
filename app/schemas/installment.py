@@ -7,7 +7,7 @@ from typing import Optional
 from app.models.installment import InstallmentStatus
 
 
-class InstallmentResponse(BaseModel):
+class InstallmentOut(BaseModel):
     id: int
     sale_id: int
     customer_id: int
@@ -18,6 +18,8 @@ class InstallmentResponse(BaseModel):
     paid_at: Optional[datetime] = None
     status: InstallmentStatus
     created_at: datetime
+    total_paid: float = 0.0
+    remaining_amount: float = 0.0
     
     model_config = ConfigDict(from_attributes=True)
 

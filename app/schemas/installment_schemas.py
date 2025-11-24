@@ -24,6 +24,8 @@ class InstallmentOut(InstallmentBase):
     paid_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
+    total_paid: Optional[float] = None
+    remaining_amount: Optional[float] = None
     
     model_config = ConfigDict(from_attributes=True)
 

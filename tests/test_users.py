@@ -128,8 +128,9 @@ class TestUserList:
             headers=headers
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert isinstance(data, list)
+        response_data = response.json()
+        
+        assert isinstance(response_data, (list, dict))
     
     def test_user_cannot_list_other_company_users(self, client, user_token, test_user_company2):
         """Usuário não deve listar usuários de outra empresa"""

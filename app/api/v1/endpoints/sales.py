@@ -16,22 +16,13 @@ from app.models.customer import Customer
 from app.models.installment import Installment, InstallmentStatus
 from app.schemas.sale import SaleCreate, SaleResponse
 from app.schemas.pagination import paginate
+from app.api.v1.endpoints.installments import _calculate_installment_balance, _enrich_installment_with_balance
 
 router = APIRouter()
 
 
 def get_date_range(period: str, start_date: Optional[date] = None, end_date: Optional[date] = None):
-    """
-    Helper para obter range de datas baseado no período
-    
-    Args:
-        period: 'today', 'week', 'month', 'custom'
-        start_date: Data inicial para período customizado
-        end_date: Data final para período customizado
-    
-    Returns:
-        Tupla (start_date, end_date)
-    """
+    """Helper para obter range de datas baseado no período"""
     today = date.today()
     
     if period == "today":
@@ -48,7 +39,7 @@ def get_date_range(period: str, start_date: Optional[date] = None, end_date: Opt
     elif period == "custom":
         if not start_date or not end_date:
             return None, None
-        return start_date, end_date + timedelta(days=1)  # Incluir dia final
+        return start_date, end_date + timedelta(days=1)
     else:
         return None, None
 
@@ -56,221 +47,376 @@ def get_date_range(period: str, start_date: Optional[date] = None, end_date: Opt
 @router.post("/", response_model=SaleResponse, status_code=status.HTTP_201_CREATED, summary="Registrar nova venda")
 def create_sale(
     sale_data: SaleCreate,
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
-    """
-    **Registrar Nova Venda**
+    """Registrar Nova Venda com validação completa"""
     
-    Cria uma nova venda com:
-    - Validação de estoque
-    - Cálculo automático de totais
-    - Geração de parcelas (se crediário)
-    - Desconto aplicado
-    
-    **PERMISSÃO:** Gerente e Vendedor
-    
-    **Tipos de Pagamento:**
-    - `cash`: À vista
-    - `credit`: Crediário com parcelas
-    - `pix`: PIX com QR code
-    """
-    # Validar cliente
-    customer = db.query(Customer).filter(
-        Customer.id == sale_data.customer_id,
-        Customer.company_id == current_user.company_id
-    ).first()
-    
-    if not customer:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Cliente não encontrado"
-        )
-    
-    # Validar e processar itens
-    subtotal = 0.0
-    sale_items = []
-    
-    for item_data in sale_data.items:
-        product = db.query(Product).filter(
-            Product.id == item_data.product_id,
-            Product.company_id == current_user.company_id
-        ).first()
+    try:
+        # Validar cliente com lock
+        customer = db.query(Customer).filter(
+            Customer.id == sale_data.customer_id,
+            Customer.company_id == current_user.company_id
+        ).with_for_update().first()
         
-        if not product:
+        if not customer:
             raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Produto {item_data.product_id} não encontrado"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Cliente não encontrado"
             )
         
-        if product.stock_quantity < item_data.quantity:
+        if not customer.is_active:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Estoque insuficiente para {product.name}. Disponível: {product.stock_quantity}"
+                detail="Cliente está inativo e não pode realizar compras"
             )
         
-        item_total = item_data.unit_price * item_data.quantity
-        subtotal += item_total
+        # Validar e processar itens
+        subtotal = 0.0
+        sale_items = []
         
-        sale_items.append({
-            "product": product,
-            "data": item_data,
-            "total": item_total
-        })
-    
-    # Validar desconto
-    if sale_data.discount_amount < 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Desconto não pode ser negativo"
-        )
-    
-    if sale_data.discount_amount > subtotal:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Desconto não pode ser maior que o subtotal"
-        )
-    
-    # Validar desconto em relação ao valor total
-    discount_percentage = (sale_data.discount_amount / subtotal * 100) if subtotal > 0 else 0
-    if discount_percentage > 100:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Desconto não pode exceder 100% do valor"
-        )
-    
-    # Validar quantidade de parcelas
-    if sale_data.payment_type == PaymentType.CREDIT:
-        if not sale_data.installments_count or sale_data.installments_count < 1:
+        if not sale_data.items or len(sale_data.items) == 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Crediário requer no mínimo 1 parcela"
+                detail="Venda deve ter pelo menos 1 item"
             )
-        if sale_data.installments_count > 60:
+        
+        for item_data in sale_data.items:
+            if item_data.quantity <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Quantidade do item deve ser maior que zero"
+                )
+            
+            product = db.query(Product).filter(
+                Product.id == item_data.product_id,
+                Product.company_id == current_user.company_id
+            ).with_for_update().first()
+            
+            if not product:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Produto {item_data.product_id} não encontrado"
+                )
+            
+            if not product.is_active:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Produto {product.name} está inativo e não pode ser vendido"
+                )
+            
+            if product.stock_quantity < item_data.quantity:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Estoque insuficiente para {product.name}. Disponível: {product.stock_quantity}"
+                )
+            
+            item_total = item_data.unit_price * item_data.quantity
+            subtotal += item_total
+            
+            sale_items.append({
+                "product": product,
+                "data": item_data,
+                "total": item_total
+            })
+        
+        # Validar desconto
+        if sale_data.discount_amount < 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Máximo de 60 parcelas permitidas"
+                detail="Desconto não pode ser negativo"
             )
+        
+        if sale_data.discount_amount > subtotal:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Desconto não pode ser maior que o subtotal"
+            )
+        
+        # Validar quantidade de parcelas
+        if sale_data.payment_type == PaymentType.CREDIT:
+            if not sale_data.installments_count or sale_data.installments_count < 1:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Crediário requer no mínimo 1 parcela"
+                )
+            if sale_data.installments_count > 60:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="Máximo de 60 parcelas permitidas"
+                )
+        
+        total_amount = subtotal - sale_data.discount_amount
+        
+        # Validar que total não fica negativo
+        if total_amount < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Valor total não pode ser negativo"
+            )
+        
+        # Criar venda
+        sale = Sale(
+            customer_id=customer.id,
+            company_id=current_user.company_id,
+            user_id=current_user.id,
+            payment_type=sale_data.payment_type,
+            subtotal=subtotal,
+            discount_amount=sale_data.discount_amount,
+            total_amount=total_amount,
+            installments_count=sale_data.installments_count,
+            notes=sale_data.notes,
+            status=SaleStatus.COMPLETED
+        )
+        
+        db.add(sale)
+        db.flush()
+        
+        for item_info in sale_items:
+            sale_item = SaleItem(
+                sale_id=sale.id,
+                product_id=item_info["product"].id,
+                quantity=item_info["data"].quantity,
+                unit_price=item_info["data"].unit_price,
+                total_price=item_info["total"]
+            )
+            db.add(sale_item)
+            
+            # Debitar estoque
+            item_info["product"].stock_quantity -= item_info["data"].quantity
+        
+        # Gerar parcelas para crediário
+        if sale_data.payment_type == PaymentType.CREDIT:
+            num_installments = sale_data.installments_count or 1
+            if num_installments < 1:
+                num_installments = 1
+            
+            # Calcular valor de cada parcela
+            base_amount = total_amount / num_installments
+            
+            for i in range(num_installments):
+                # Ajustar última parcela para compensar arredondamentos
+                if i == num_installments - 1:
+                    amount = total_amount - (base_amount * (num_installments - 1))
+                else:
+                    amount = base_amount
+                
+                due_date = date.today() + timedelta(days=30 * (i + 1))
+                
+                installment = Installment(
+                    sale_id=sale.id,
+                    customer_id=customer.id,
+                    company_id=current_user.company_id,
+                    installment_number=i + 1,
+                    amount=amount,
+                    due_date=due_date,
+                    status=InstallmentStatus.PENDING
+                )
+                db.add(installment)
+        
+        db.commit()
+        db.refresh(sale)
+        
+        return sale
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao processar venda: {str(e)}"
+        )
+
+
+@router.get("/products/top-sellers", summary="Produtos mais vendidos")
+def get_top_selling_products(
+    customer_id: Optional[int] = Query(None, description="Filtrar por cliente (opcional)"),
+    metric: str = Query("quantity", pattern="^(quantity|revenue)$"),
+    limit: int = Query(20, ge=1, le=100, description="Quantidade de produtos (máximo 100)"),
+    period: Optional[str] = Query("month", description="Período: today, week, month, custom"),
+    start_date: Optional[date] = Query(None, description="Data inicial (para period=custom)"),
+    end_date: Optional[date] = Query(None, description="Data final (para period=custom)"),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
+    db: Session = Depends(get_db)
+):
+    """Produtos Mais Vendidos (Top Sellers)"""
+    # Determinar período
+    date_start, date_end = get_date_range(period, start_date, end_date)
     
-    total_amount = subtotal - sale_data.discount_amount
-    
-    # Validar que total não fica negativo
-    if total_amount < 0:
+    if not date_start or not date_end:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Valor total não pode ser negativo"
+            detail="Para period=custom, informe start_date e end_date no formato YYYY-MM-DD"
         )
     
-    # Validar quantidade de itens
-    if not sale_data.items or len(sale_data.items) == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Venda deve ter pelo menos 1 item"
-        )
+    from sqlalchemy import func, desc
     
-    # Criar venda
-    sale = Sale(
-        customer_id=customer.id,
-        company_id=current_user.company_id,
-        user_id=current_user.id,
-        payment_type=sale_data.payment_type,
-        subtotal=subtotal,
-        discount_amount=sale_data.discount_amount,
-        total_amount=total_amount,
-        installments_count=sale_data.installments_count,
-        notes=sale_data.notes,
-        status=SaleStatus.COMPLETED
+    # Query para top sellers
+    query = db.query(
+        Product.id,
+        Product.name,
+        func.count(Sale.id).label("purchase_count"),
+        func.sum(SaleItem.quantity).label("quantity_sold"),
+        func.sum(SaleItem.total_price).label("revenue")
+    ).join(SaleItem, Product.id == SaleItem.product_id)\
+     .join(Sale, SaleItem.sale_id == Sale.id)\
+     .filter(
+        Product.company_id == current_user.company_id,
+        Sale.company_id == current_user.company_id,
+        Sale.status == SaleStatus.COMPLETED,
+        Sale.created_at >= datetime.combine(date_start, datetime.min.time()),
+        Sale.created_at < datetime.combine(date_end, datetime.min.time())
+     )
+    
+    if customer_id:
+        query = query.filter(Sale.customer_id == customer_id)
+    
+    query = query.group_by(Product.id, Product.name)
+    
+    # Ordenar por métrica
+    if metric == "revenue":
+        query = query.order_by(desc("revenue"))
+    else:  # quantity
+        query = query.order_by(desc("quantity_sold"))
+    
+    top_products = query.limit(limit).all()
+    
+    return [
+        {
+            "product_id": item[0],
+            "name": item[1],
+            "purchase_count": item[2],
+            "quantity_sold": item[3],
+            "revenue": float(item[4]) if item[4] else 0.0
+        }
+        for item in top_products
+    ]
+
+
+@router.get("/", summary="Listar vendas da empresa")
+def list_sales(
+    skip: int = Query(0, ge=0, description="Pular N registros"),
+    limit: Optional[int] = Query(None, ge=1, le=100, description="Quantidade de registros (opcional, máximo 100)"),
+    search: Optional[str] = Query(None, description="Buscar por nome do cliente, CPF, email ou telefone"),
+    customer_id: Optional[int] = Query(None, description="Filtrar por ID do cliente"),
+    status: Optional[str] = Query(None, description="Filtrar por status (completed, cancelled)"),
+    payment_type: Optional[str] = Query(None, description="Filtrar por tipo de pagamento (cash, credit, pix)"),
+    period: Optional[str] = Query(None, description="Período: today, week, month, custom"),
+    start_date: Optional[date] = Query(None, description="Data inicial (para period=custom)"),
+    end_date: Optional[date] = Query(None, description="Data final (para period=custom)"),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
+    db: Session = Depends(get_db)
+):
+    """Listar Vendas da Empresa com filtros opcionais e paginação"""
+    query = db.query(Sale).join(Customer, Sale.customer_id == Customer.id).filter(
+        Sale.company_id == current_user.company_id
     )
     
-    db.add(sale)
-    db.flush()
-    
-    # Criar itens e debitar estoque
-    for item_info in sale_items:
-        sale_item = SaleItem(
-            sale_id=sale.id,
-            product_id=item_info["product"].id,
-            quantity=item_info["data"].quantity,
-            unit_price=item_info["data"].unit_price,
-            total_price=item_info["total"]
-        )
-        db.add(sale_item)
-        
-        # Debitar estoque
-        item_info["product"].stock_quantity -= item_info["data"].quantity
-    
-    # Gerar parcelas para crediário
-    if sale_data.payment_type == PaymentType.CREDIT:
-        num_installments = sale_data.installments_count or 1
-        if num_installments < 1:
-            num_installments = 1
-        
-        # Calcular valor de cada parcela
-        base_amount = total_amount / num_installments
-        
-        for i in range(num_installments):
-            # Ajustar última parcela para compensar arredondamentos
-            if i == num_installments - 1:
-                amount = total_amount - (base_amount * (num_installments - 1))
-            else:
-                amount = base_amount
-            
-            due_date = date.today() + timedelta(days=30 * (i + 1))
-            
-            installment = Installment(
-                sale_id=sale.id,
-                customer_id=customer.id,
-                company_id=current_user.company_id,
-                installment_number=i + 1,
-                amount=amount,
-                due_date=due_date,
-                status=InstallmentStatus.PENDING
+    if search:
+        search_term = f"%{search}%"
+        from sqlalchemy import or_
+        query = query.filter(
+            or_(
+                Customer.name.ilike(search_term),
+                Customer.cpf.ilike(search_term),
+                Customer.email.ilike(search_term),
+                Customer.phone.ilike(search_term)
             )
-            db.add(installment)
+        )
     
-    db.commit()
-    db.refresh(sale)
+    # Aplicar filtro de cliente por ID
+    if customer_id:
+        query = query.filter(Sale.customer_id == customer_id)
     
-    return sale
+    if status:
+        # Normalizar: canceled -> cancelled, uppercase
+        normalized_status = status.lower()
+        if normalized_status == "canceled":
+            normalized_status = "cancelled"
+        
+        # Converter para uppercase para corresponder ao enum
+        normalized_status = normalized_status.upper()
+        
+        # Validar se é um status válido
+        try:
+            status_enum = SaleStatus[normalized_status]
+            query = query.filter(Sale.status == status_enum)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Status inválido: '{status}'. Use: completed, cancelled, pending"
+            )
+    
+    if payment_type:
+        # Converter para uppercase para corresponder ao enum
+        normalized_payment = payment_type.upper()
+        
+        # Validar se é um tipo de pagamento válido
+        try:
+            payment_enum = PaymentType[normalized_payment]
+            query = query.filter(Sale.payment_type == payment_enum)
+        except KeyError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de pagamento inválido: '{payment_type}'. Use: cash, credit, pix"
+            )
+    
+    # Aplicar filtros de data
+    if period:
+        date_start, date_end = get_date_range(period, start_date, end_date)
+        
+        if not date_start or not date_end:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Para period=custom, informe start_date e end_date no formato YYYY-MM-DD"
+            )
+        
+        query = query.filter(
+            Sale.created_at >= datetime.combine(date_start, datetime.min.time()),
+            Sale.created_at < datetime.combine(date_end, datetime.min.time())
+        )
+    
+    # Contar total antes da paginação
+    total = query.count()
+    
+    # Ordenar por data mais recente
+    query = query.order_by(Sale.created_at.desc())
+    
+    # Aplicar paginação
+    query = query.offset(skip)
+    
+    if limit is None:
+        sales = query.all()
+        limit = total if total > 0 else 1
+    else:
+        if limit > 100:
+            limit = 100
+        sales = query.limit(limit).all()
+    
+    sales_data = []
+    for sale in sales:
+        sale_dict = SaleResponse.model_validate(sale).model_dump()
+        enriched_installments = []
+        for installment in sale.installments:
+            enriched_inst = _enrich_installment_with_balance(installment)
+            enriched_installments.append(enriched_inst)
+        sale_dict["installments"] = enriched_installments
+        sales_data.append(sale_dict)
+    
+    return paginate(sales_data, total, skip, limit)
 
-
-# FastAPI processa rotas na ordem de definição, então rotas com paths dinâmicos devem vir por último
-
-# Ordem correta: /by-customer/{}/products -> /by-customer/{} -> /products/top-sellers -> / -> /{id}
 
 @router.get("/by-customer/{customer_id}/products", summary="Produtos que cliente comprou")
 def get_customer_purchased_products(
     customer_id: int,
     skip: int = Query(0, ge=0, description="Pular N registros"),
     limit: Optional[int] = Query(None, ge=1, le=200, description="Quantidade de registros (opcional, máximo 200)"),
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
-    """
-    **Produtos que Cliente Já Comprou**
-    
-    Lista todos os produtos distintos que um cliente específico já comprou, ordenados 
-    por frequência de compra (produtos mais comprados primeiro).
-    
-    **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
-    
-    **Utilidade:** Útil para sugestões de venda e análise de preferências.
-    
-    **Parâmetros:**
-    - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (opcional, se não informado retorna todos, máximo 200)
-    
-    **Retorna:** 
-    - `product_id`: ID do produto
-    - `product_name`: Nome do produto
-    - `brand`: Marca do produto
-    - `times_purchased`: Quantas vezes foi comprado
-    - `total_quantity`: Quantidade total comprada
-    - `last_purchase_date`: Data da última compra
-    - `total_spent`: Total gasto neste produto
-    
-    **Exemplo:** GET /sales/by-customer/123/products?skip=0&limit=50
-    """
+    """Produtos que Cliente Já Comprou"""
     # Verificar se cliente existe e pertence à empresa
     customer = db.query(Customer).filter(
         Customer.id == customer_id,
@@ -336,34 +482,11 @@ def get_customer_sales_history(
     customer_id: int,
     skip: int = Query(0, ge=0, description="Pular N registros"),
     limit: Optional[int] = Query(None, ge=1, le=100, description="Quantidade de registros (opcional, máximo 100)"),
-    sort: str = Query("date_desc", regex="^(date_desc|date_asc|amount_desc|amount_asc)$"),
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    sort: str = Query("date_desc", pattern="^(date_desc|date_asc|amount_desc|amount_asc)$"),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
-    """
-    **Histórico Detalhado de Vendas por Cliente**
-    
-    Retorna todas as vendas de um cliente com estatísticas consolidadas e análise completa.
-    
-    **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
-    
-    **Parâmetros:**
-    - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (opcional, se não informado retorna todos, máximo 100)
-    - `sort`: Ordenação dos resultados
-      - `date_desc`: Data mais recente primeiro (padrão)
-      - `date_asc`: Data mais antiga primeiro
-      - `amount_desc`: Maior valor primeiro
-      - `amount_asc`: Menor valor primeiro
-    
-    **Retorna Objeto com:**
-    - `customer`: Dados básicos do cliente
-    - `statistics`: Estatísticas consolidadas (total gasto, ticket médio, etc)
-    - `sales`: Lista paginada de vendas detalhadas
-    - `metadata`: Informações de paginação
-    
-    **Exemplo:** GET /sales/by-customer/123?sort=date_desc&limit=20
-    """
+    """Histórico Detalhado de Vendas por Cliente"""
     # Verificar se cliente existe e pertence à empresa
     customer = db.query(Customer).filter(
         Customer.id == customer_id,
@@ -459,255 +582,13 @@ def get_customer_sales_history(
     }
 
 
-@router.get("/products/top-sellers", summary="Produtos mais vendidos")
-def get_top_selling_products(
-    customer_id: Optional[int] = Query(None, description="Filtrar por cliente (opcional)"),
-    metric: str = Query("quantity", regex="^(quantity|revenue)$"),
-    limit: int = Query(20, ge=1, le=100, description="Quantidade de produtos (máximo 100)"),
-    period: Optional[str] = Query("month", description="Período: today, week, month, custom"),
-    start_date: Optional[date] = Query(None, description="Data inicial (para period=custom)"),
-    end_date: Optional[date] = Query(None, description="Data final (para period=custom)"),
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
-    db: Session = Depends(get_db)
-):
-    """
-    **Produtos Mais Vendidos (Top Sellers)**
-    
-    Ranking de produtos mais vendidos por quantidade ou faturamento em um período.
-    
-    **PERMISSÃO:** Gerente e Vendedor
-    
-    **Parâmetros:**
-    - `customer_id` (Opcional): Se fornecido, retorna produtos mais comprados por esse cliente. Se omitido, retorna mais vendidos da loja em geral.
-    - `metric`: Critério de ranking
-      - `quantity`: Quantidade de unidades vendidas (padrão)
-      - `revenue`: Faturamento total
-    - `period`: Período de análise (padrão: month)
-      - `today`: Vendas de hoje
-      - `week`: Vendas da semana atual
-      - `month`: Vendas do mês atual
-      - `custom`: Intervalo personalizado
-    - `limit`: Quantidade de produtos a retornar (máximo 100)
-    
-    **Retorna Array de Objetos com:**
-    - `product_id`: ID do produto
-    - `name`: Nome do produto
-    - `purchase_count`: Quantas vezes esteve em uma compra
-    - `quantity_sold`: Quantidade total de unidades vendidas
-    - `revenue`: Receita total gerada
-    
-    **Exemplo:** GET /sales/products/top-sellers?metric=revenue&period=month&limit=20
-    **Exemplo com Cliente:** GET /sales/products/top-sellers?customer_id=123&limit=10
-    """
-    # Determinar período
-    date_start, date_end = get_date_range(period, start_date, end_date)
-    
-    if not date_start or not date_end:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Para period=custom, informe start_date e end_date no formato YYYY-MM-DD"
-        )
-    
-    from sqlalchemy import func, desc
-    
-    # Query para top sellers
-    query = db.query(
-        Product.id,
-        Product.name,
-        func.count(Sale.id).label("purchase_count"),
-        func.sum(SaleItem.quantity).label("quantity_sold"),
-        func.sum(SaleItem.total_price).label("revenue")
-    ).join(SaleItem, Product.id == SaleItem.product_id)\
-     .join(Sale, SaleItem.sale_id == Sale.id)\
-     .filter(
-        Product.company_id == current_user.company_id,
-        Sale.company_id == current_user.company_id,
-        Sale.status == SaleStatus.COMPLETED,
-        Sale.created_at >= datetime.combine(date_start, datetime.min.time()),
-        Sale.created_at < datetime.combine(date_end, datetime.min.time())
-     )
-    
-    if customer_id:
-        query = query.filter(Sale.customer_id == customer_id)
-    
-    query = query.group_by(Product.id, Product.name)
-    
-    # Ordenar por métrica
-    if metric == "revenue":
-        query = query.order_by(desc("revenue"))
-    else:  # quantity
-        query = query.order_by(desc("quantity_sold"))
-    
-    top_products = query.limit(limit).all()
-    
-    return [
-        {
-            "product_id": item[0],
-            "name": item[1],
-            "purchase_count": item[2],
-            "quantity_sold": item[3],
-            "revenue": float(item[4]) if item[4] else 0.0
-        }
-        for item in top_products
-    ]
-
-
-@router.get("/", summary="Listar vendas da empresa")
-def list_sales(
-    skip: int = Query(0, ge=0, description="Pular N registros"),
-    limit: Optional[int] = Query(None, ge=1, le=100, description="Quantidade de registros (opcional, máximo 100)"),
-    search: Optional[str] = Query(None, description="Buscar por nome do cliente, CPF, email ou telefone"),
-    customer_id: Optional[int] = Query(None, description="Filtrar por ID do cliente"),
-    status: Optional[str] = Query(None, description="Filtrar por status (completed, cancelled)"),
-    payment_type: Optional[str] = Query(None, description="Filtrar por tipo de pagamento (cash, credit, pix)"),
-    period: Optional[str] = Query(None, description="Período: today, week, month, custom"),
-    start_date: Optional[date] = Query(None, description="Data inicial (para period=custom)"),
-    end_date: Optional[date] = Query(None, description="Data final (para period=custom)"),
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
-    db: Session = Depends(get_db)
-):
-    """
-    **Listar Vendas da Empresa**
-    
-    Lista todas as vendas com filtros opcionais e paginação.
-    
-    **PERMISSÃO:** Gerente e Vendedor (dados da própria empresa)
-    
-    **Paginação:**
-    - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (opcional, se não informado retorna todos, máximo: 100)
-    
-    **Filtros Básicos:**
-    - `search`: Buscar por nome, CPF, email ou telefone do cliente (busca parcial)
-    - `customer_id`: Filtrar por ID do cliente exato
-    - `status`: Filtrar por status (completed, cancelled)
-    - `payment_type`: Filtrar por tipo de pagamento (cash, credit, pix)
-    
-    **Filtros de Data:**
-    - `period`: Período predefinido
-      - `today`: Vendas de hoje
-      - `week`: Vendas da semana atual (Segunda a Domingo)
-      - `month`: Vendas do mês atual
-      - `custom`: Intervalo personalizado (requer start_date e end_date)
-    - `start_date`: Data inicial para filtro customizado (formato: YYYY-MM-DD)
-    - `end_date`: Data final para filtro customizado (formato: YYYY-MM-DD)
-    
-    **Resposta:** 
-    - `data`: Lista de vendas com cliente, itens e parcelas
-    - `metadata`: Metadados de paginação (total, página, has_next, has_prev)
-    
-    **Exemplos de Uso:**
-    - Vendas de hoje: `?period=today`
-    - Vendas da semana: `?period=week`
-    - Vendas do mês: `?period=month`
-    - Intervalo personalizado: `?period=custom&start_date=2025-01-01&end_date=2025-01-31`
-    - Buscar por cliente: `?search=silva`
-    - Combinar filtros: `?period=month&payment_type=cash&search=silva&limit=20`
-    """
-    query = db.query(Sale).join(Customer, Sale.customer_id == Customer.id).filter(
-        Sale.company_id == current_user.company_id
-    )
-    
-    if search:
-        search_term = f"%{search}%"
-        from sqlalchemy import or_
-        query = query.filter(
-            or_(
-                Customer.name.ilike(search_term),
-                Customer.cpf.ilike(search_term),
-                Customer.email.ilike(search_term),
-                Customer.phone.ilike(search_term)
-            )
-        )
-    
-    # Aplicar filtro de cliente por ID
-    if customer_id:
-        query = query.filter(Sale.customer_id == customer_id)
-    
-    if status:
-        # Normalizar: canceled -> cancelled, uppercase
-        normalized_status = status.lower()
-        if normalized_status == "canceled":
-            normalized_status = "cancelled"
-        
-        # Converter para uppercase para corresponder ao enum
-        normalized_status = normalized_status.upper()
-        
-        # Validar se é um status válido
-        try:
-            status_enum = SaleStatus[normalized_status]
-            query = query.filter(Sale.status == status_enum)
-        except KeyError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Status inválido: '{status}'. Use: completed, cancelled, pending"
-            )
-    
-    if payment_type:
-        # Converter para uppercase para corresponder ao enum
-        normalized_payment = payment_type.upper()
-        
-        # Validar se é um tipo de pagamento válido
-        try:
-            payment_enum = PaymentType[normalized_payment]
-            query = query.filter(Sale.payment_type == payment_enum)
-        except KeyError:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Tipo de pagamento inválido: '{payment_type}'. Use: cash, credit, pix"
-            )
-    
-    # Aplicar filtros de data
-    if period:
-        date_start, date_end = get_date_range(period, start_date, end_date)
-        
-        if not date_start or not date_end:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Para period=custom, informe start_date e end_date no formato YYYY-MM-DD"
-            )
-        
-        query = query.filter(
-            Sale.created_at >= datetime.combine(date_start, datetime.min.time()),
-            Sale.created_at < datetime.combine(date_end, datetime.min.time())
-        )
-    
-    # Contar total antes da paginação
-    total = query.count()
-    
-    # Ordenar por data mais recente
-    query = query.order_by(Sale.created_at.desc())
-    
-    # Aplicar paginação
-    query = query.offset(skip)
-    
-    if limit is None:
-        sales = query.all()
-        limit = total if total > 0 else 1
-    else:
-        if limit > 100:
-            limit = 100
-        sales = query.limit(limit).all()
-    
-    sales_data = [SaleResponse.model_validate(sale).model_dump() for sale in sales]
-    
-    return paginate(sales_data, total, skip, limit)
-
-
 @router.get("/{sale_id}", response_model=SaleResponse, summary="Obter dados da venda")
 def get_sale(
     sale_id: int,
-    current_user: User = Depends(require_role("gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
-    """
-    **Obter Dados de uma Venda**
-    
-    Retorna informações detalhadas de uma venda incluindo itens e parcelas.
-    
-    **PERMISSÃO:** Gerente e Vendedor (da própria empresa)
-
-    """
+    """Obter Dados de uma Venda"""
     sale = db.query(Sale).filter(Sale.id == sale_id).first()
 
     if not sale:
@@ -726,6 +607,12 @@ def get_sale(
     sale_data = SaleResponse.model_validate(sale).model_dump()
     sale_data["profit"] = float(sale.profit)
     sale_data["profit_margin_percentage"] = float(sale.profit_margin_percentage)
+    
+    enriched_installments = []
+    for installment in sale.installments:
+        enriched_inst = _enrich_installment_with_balance(installment)
+        enriched_installments.append(enriched_inst)
+    sale_data["installments"] = enriched_installments
 
     return sale_data
 
@@ -733,17 +620,12 @@ def get_sale(
 @router.post("/{sale_id}/cancel", summary="Cancelar venda")
 def cancel_sale(
     sale_id: int,
-    current_user: User = Depends(require_role("gerente", "Gerente")),
+    current_user: User = Depends(require_role("admin", "gerente")),
     db: Session = Depends(get_db)
 ):
-    """
-    **Cancelar Venda**
+    """Cancelar Venda"""
     
-    Cancela uma venda, restaurando estoque e cancelando parcelas.
-    
-    **PERMISSÃO:** Apenas Gerente
-    """
-    sale = db.query(Sale).filter(Sale.id == sale_id).first()
+    sale = db.query(Sale).filter(Sale.id == sale_id).with_for_update().first()
     
     if not sale:
         raise HTTPException(
@@ -770,9 +652,9 @@ def cancel_sale(
             product_updates[item.product_id] = 0
         product_updates[item.product_id] += item.quantity
     
-    # Apply stock restoration in single transaction
+    # Apply stock restoration in single transaction with lock
     for product_id, quantity_to_restore in product_updates.items():
-        product = db.query(Product).filter(Product.id == product_id).first()
+        product = db.query(Product).filter(Product.id == product_id).with_for_update().first()
         if product:
             product.stock_quantity += quantity_to_restore
     

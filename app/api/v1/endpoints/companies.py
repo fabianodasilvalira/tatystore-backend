@@ -22,7 +22,7 @@ from app.core.storage_local import save_company_file
 router = APIRouter()
 
 
-@router.post("/", response_model=CompanyCreateResponse, status_code=status.HTTP_201_CREATED, summary="Criar nova empresa")
+@router.post("/", response_model=CompanyCreateResponse, status_code=status.HTTP_200_OK, summary="Criar nova empresa")
 def create_company(
     company_data: CompanyCreate,
     db: Session = Depends(get_db)
@@ -123,7 +123,7 @@ def create_company(
 def list_companies(
     skip: int = 0,
     limit: Optional[int] = None,
-    current_user: User = Depends(require_role("admin", "Administrador")),
+    current_user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db)
 ):
     """
@@ -166,7 +166,7 @@ def list_companies(
 
 @router.get("/me", response_model=CompanyResponse, summary="Obter dados da própria empresa")
 def get_my_company(
-    current_user: User = Depends(require_role("admin", "Administrador", "gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -197,7 +197,7 @@ def get_my_company(
 @router.get("/{company_id}", response_model=CompanyResponse, summary="Obter dados da empresa")
 def get_company(
     company_id: int,
-    current_user: User = Depends(require_role("admin", "Administrador", "gerente", "Gerente", "vendedor", "Vendedor")),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
     """
@@ -217,10 +217,10 @@ def get_company(
             detail="Empresa não encontrada"
         )
     
-    user_role_name = current_user.role.name
-    is_admin = user_role_name.lower() in ["admin", "administrador"]
+    user_role_name = current_user.role.name.lower() if current_user.role else ""
+    is_admin = "admin" in user_role_name or user_role_name == "administrador"
     
-    if not is_admin and company.id != current_user.company_id:
+    if not is_admin and current_user.company_id != company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado: você só pode acessar dados da sua própria empresa"
@@ -233,7 +233,7 @@ def get_company(
 def update_company(
     company_id: int,
     company_data: CompanyUpdate,
-    current_user: User = Depends(require_role("admin", "Administrador", "gerente", "Gerente")),
+    current_user: User = Depends(require_role("admin", "gerente")),
     db: Session = Depends(get_db)
 ):
     """
@@ -254,7 +254,7 @@ def update_company(
         )
     
     user_role_name = current_user.role.name
-    is_admin = user_role_name.lower() in ["admin", "administrador"]
+    is_admin = user_role_name.lower() in ["admin"]
     
     if not is_admin and current_user.company_id != company_id:
         raise HTTPException(
@@ -277,7 +277,7 @@ def update_company(
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Desativar empresa")
 def delete_company(
     company_id: int,
-    current_user: User = Depends(require_role("admin", "Administrador")),
+    current_user: User = Depends(require_role("admin")),
     db: Session = Depends(get_db)
 ):
     """
@@ -306,7 +306,7 @@ def delete_company(
 async def upload_company_logo(
     company_id: int,
     file: UploadFile = File(...),
-    current_user: User = Depends(require_role("admin", "Administrador", "gerente", "Gerente")),
+    current_user: User = Depends(require_role("admin", "gerente")),
     db: Session = Depends(get_db)
 ):
     """
@@ -337,7 +337,7 @@ async def upload_company_logo(
     
     # Verificar isolamento
     user_role_name = current_user.role.name
-    is_admin = user_role_name.lower() in ["admin", "administrador"]
+    is_admin = user_role_name.lower() in ["admin"]
     
     if not is_admin and current_user.company_id != company_id:
         raise HTTPException(

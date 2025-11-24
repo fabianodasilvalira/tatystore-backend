@@ -108,6 +108,13 @@ def test_list_overdue_installments(client, admin_token, test_product, test_custo
     )
     
     assert response.status_code == 200
-    data = response.json()
+    response_data = response.json()
+    
+    # O endpoint agora retorna {items: [...], total: N, metadata: {...}}
+    if isinstance(response_data, dict) and "items" in response_data:
+        data = response_data["items"]
+    else:
+        data = response_data
+    
     assert len(data) > 0
     assert any(i["id"] == installment_id for i in data)

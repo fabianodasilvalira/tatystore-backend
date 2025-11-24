@@ -1,7 +1,3 @@
-"""
-Endpoints de Parcelas (v1)
-Gerenciamento de crediário com atualização de status
-"""
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -9,12 +5,110 @@ from datetime import datetime, date
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
+from app.core.messages import Messages
 from app.models.user import User
 from app.models.installment import Installment, InstallmentStatus
-from app.schemas.installment import InstallmentResponse
+from app.models.installment_payment import InstallmentPayment, InstallmentPaymentStatus
+from app.schemas.installment import InstallmentOut
 from app.schemas.pagination import paginate
 
 router = APIRouter()
+
+def _calculate_installment_balance(installment: Installment) -> tuple[float, float]:
+    """
+    Calcula total pago e saldo restante de uma parcela.
+    Retorna: (total_pago, saldo_restante)
+    
+    Esta é a função centralizada usada em todo o sistema para calcular saldos.
+    """
+    total_paid = sum(
+        float(p.amount_paid) for p in installment.payments 
+        if p.status == InstallmentPaymentStatus.COMPLETED
+    )
+    remaining = max(0.0, float(installment.amount) - total_paid)
+    return total_paid, remaining
+
+
+def _enrich_installment_with_balance(installment: Installment) -> dict:
+    """
+    Converte parcela em dict e adiciona informações de saldo.
+    Reutilizável para manter consistência em toda API.
+    """
+    data = InstallmentOut.model_validate(installment).model_dump()
+    total_paid, remaining = _calculate_installment_balance(installment)
+    data["total_paid"] = total_paid
+    data["remaining_amount"] = remaining
+    return data
+
+@router.get("/filter", summary="Filtrar parcelas com múltiplos critérios")
+def filter_installments(
+    skip: int = 0,
+    limit: Optional[int] = None,
+    customer_id: Optional[int] = None,
+    status: Optional[str] = None,
+    status_filter: Optional[str] = None,  # Suporte para ambos os nomes de parâmetro
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    overdue: Optional[bool] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Filtrar Parcelas com Múltiplos Critérios
+    
+    **Parâmetros:**
+    - `skip`: Pular N registros (padrão: 0)
+    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
+    - `customer_id`: Filtrar por cliente (opcional)
+    - `status` ou `status_filter`: Filtrar por status (optional: pending, paid, overdue, cancelled)
+    - `start_date`: Data inicial (formato: YYYY-MM-DD)
+    - `end_date`: Data final (formato: YYYY-MM-DD)
+    - `overdue`: Filtrar apenas vencidas (true/false)
+    """
+    query = db.query(Installment).filter(
+        Installment.company_id == current_user.company_id
+    )
+
+    status_value = status or status_filter
+    if status_value:
+        try:
+            status_enum = InstallmentStatus(status_value.lower())
+            query = query.filter(Installment.status == status_enum)
+        except ValueError:
+            raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
+
+    if customer_id:
+        query = query.filter(Installment.customer_id == customer_id)
+
+    if start_date:
+        query = query.filter(Installment.due_date >= start_date)
+    
+    if end_date:
+        query = query.filter(Installment.due_date <= end_date)
+
+    if overdue is True:
+        today = date.today()
+        query = query.filter(
+            Installment.status == InstallmentStatus.OVERDUE,
+            Installment.due_date < today
+        )
+
+    query = query.order_by(Installment.due_date.asc())
+    
+    total = query.count()
+    
+    query = query.offset(skip)
+    
+    if limit is None:
+        installments = query.all()
+        limit = total if total > 0 else 1
+    else:
+        installments = query.limit(limit).all()
+
+    installments_data = [_enrich_installment_with_balance(i) for i in installments]
+    
+    return paginate(installments_data, total, skip, limit)
+
 
 @router.get("/overdue", summary="Listar parcelas vencidas")
 def list_overdue_installments(
@@ -52,7 +146,7 @@ def list_overdue_installments(
     else:
         installments = query.limit(limit).all()
     
-    installments_data = [InstallmentResponse.model_validate(i).model_dump() for i in installments]
+    installments_data = [_enrich_installment_with_balance(i) for i in installments]
     
     return paginate(installments_data, total, skip, limit)
 
@@ -87,7 +181,7 @@ def list_installments(
             status_enum = InstallmentStatus(status_filter.lower())
             query = query.filter(Installment.status == status_enum)
         except ValueError:
-            raise HTTPException(400, detail="Status inválido. Use: pending, paid, overdue, cancelled.")
+            raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
 
     query = query.order_by(Installment.due_date.asc())
     
@@ -101,60 +195,9 @@ def list_installments(
     else:
         installments = query.limit(limit).all()
 
-    installments_data = [InstallmentResponse.model_validate(i).model_dump() for i in installments]
+    installments_data = [_enrich_installment_with_balance(i) for i in installments]
     
     return paginate(installments_data, total, skip, limit)
-
-
-@router.get("/{installment_id}", response_model=InstallmentResponse, summary="Obter dados da parcela")
-def get_installment(
-    installment_id: int,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """
-    Obter detalhes de uma parcela
-    """
-    installment = db.query(Installment).filter(Installment.id == installment_id).first()
-
-    if not installment:
-        raise HTTPException(status_code=404, detail="Parcela não encontrada")
-
-    if installment.company_id != current_user.company_id:
-        raise HTTPException(status_code=404, detail="Recurso não encontrado")
-
-    return installment
-
-
-@router.patch("/{installment_id}/pay", response_model=InstallmentResponse, summary="Marcar parcela como paga")
-def pay_installment(
-    installment_id: int,
-    current_user: User = Depends(require_role("admin", "gerente")),
-    db: Session = Depends(get_db)
-):
-    """
-    Marcar parcela como paga (Admin ou Gerente)
-    """
-    installment = db.query(Installment).filter(Installment.id == installment_id).first()
-
-    if not installment:
-        raise HTTPException(status_code=404, detail="Parcela não encontrada")
-
-    if installment.company_id != current_user.company_id:
-        raise HTTPException(status_code=404, detail="Recurso não encontrado")
-
-    if installment.status == InstallmentStatus.PAID:
-        raise HTTPException(status_code=400, detail="Parcela já está paga")
-
-    if installment.status == InstallmentStatus.CANCELLED:
-        raise HTTPException(status_code=400, detail="Parcela está cancelada")
-
-    installment.status = InstallmentStatus.PAID
-    installment.paid_at = datetime.utcnow()
-    db.commit()
-    db.refresh(installment)
-
-    return installment
 
 
 @router.get("/customer/{customer_id}", summary="Listar parcelas do cliente")
@@ -191,6 +234,60 @@ def list_installments_by_customer(
     else:
         installments = query.limit(limit).all()
 
-    installments_data = [InstallmentResponse.model_validate(i).model_dump() for i in installments]
+    installments_data = [_enrich_installment_with_balance(i) for i in installments]
     
     return paginate(installments_data, total, skip, limit)
+
+
+@router.get("/{installment_id}", summary="Obter dados da parcela")
+def get_installment(
+    installment_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    Obter detalhes de uma parcela incluindo saldo pago e restante
+    """
+    installment = db.query(Installment).filter(Installment.id == installment_id).first()
+
+    if not installment:
+        raise HTTPException(status_code=404, detail=Messages.INSTALLMENT_NOT_FOUND)
+
+    if installment.company_id != current_user.company_id:
+        raise HTTPException(status_code=404, detail=Messages.RESOURCE_NOT_FOUND)
+
+    return _enrich_installment_with_balance(installment)
+
+
+@router.patch("/{installment_id}/pay", summary="Marcar parcela como paga (deprecated)")
+def pay_installment(
+    installment_id: int,
+    current_user: User = Depends(require_role("admin", "gerente")),
+    db: Session = Depends(get_db)
+):
+    """
+    Marcar parcela como paga (Gerente)
+    
+    **Nota:** Este endpoint foi mantido para compatibilidade.
+    Para pagamentos parciais, use POST /installment-payments/{installment_id}/pay
+    """
+    installment = db.query(Installment).filter(Installment.id == installment_id).first()
+
+    if not installment:
+        raise HTTPException(status_code=404, detail=Messages.INSTALLMENT_NOT_FOUND)
+
+    if installment.company_id != current_user.company_id:
+        raise HTTPException(status_code=404, detail=Messages.RESOURCE_NOT_FOUND)
+
+    if installment.status == InstallmentStatus.PAID:
+        raise HTTPException(status_code=400, detail=Messages.INSTALLMENT_ALREADY_PAID)
+
+    if installment.status == InstallmentStatus.CANCELLED:
+        raise HTTPException(status_code=400, detail=Messages.INSTALLMENT_CANCELLED)
+
+    installment.status = InstallmentStatus.PAID
+    installment.paid_at = datetime.utcnow()
+    db.commit()
+    db.refresh(installment)
+
+    return _enrich_installment_with_balance(installment)

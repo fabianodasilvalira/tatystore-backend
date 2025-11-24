@@ -32,7 +32,13 @@ class TestSalesAdvancedFiltering:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert len(data) >= 1
         assert all(
             sale["customer_id"] == test_customer.id and 
@@ -62,7 +68,13 @@ class TestSalesAdvancedFiltering:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert any(s["payment_type"] == "credit" for s in data)
     
     def test_sales_filter_with_discount(self, client, manager_token, test_customer, test_product):
@@ -98,7 +110,12 @@ class TestSalesAdvancedFiltering:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
         
         # Validar que está ordenado por data descendente
         if len(data) > 1:
@@ -130,7 +147,13 @@ class TestInstallmentsAdvancedFiltering:
             headers={"Authorization": f"Bearer {manager_token}"}
         )
         assert response.status_code == status.HTTP_200_OK
-        data = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            data = response_data["items"]
+        else:
+            data = response_data
+        
         assert isinstance(data, list)
     
     def test_overdue_installments_summary(self, client, manager_token):

@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.deps import verify_cron_auth
 from app.models.installment import Installment, InstallmentStatus
 from app.models.company import Company  # Added import for Company model
+from app.models.installment_payment import InstallmentPaymentStatus  # Added import for InstallmentPaymentStatus
 
 router = APIRouter()
 
@@ -89,25 +90,35 @@ async def overdue_summary(
     **Resumo de Inadimplência por Empresa**
     
     Retorna sumário de parcelas vencidas agrupadas por empresa.
+    Considera apenas saldo restante após pagamentos parciais.
     """
     overdue_installments = db.query(Installment).filter(
         Installment.status == InstallmentStatus.OVERDUE
     ).all()
+    
+    def _calculate_remaining_amount(installment: Installment) -> float:
+        total_paid = sum(
+            p.amount_paid for p in installment.payments 
+            if p.status == InstallmentPaymentStatus.COMPLETED
+        )
+        return max(0, installment.amount - total_paid)
     
     # Agrupar por empresa
     companies_data = {}
     total_overdue_amount = 0.0
     
     for installment in overdue_installments:
+        remaining = _calculate_remaining_amount(installment)
         company_id = installment.company_id
+        
         if company_id not in companies_data:
             companies_data[company_id] = {
                 "count": 0,
                 "total_amount": 0.0
             }
         companies_data[company_id]["count"] += 1
-        companies_data[company_id]["total_amount"] += installment.amount
-        total_overdue_amount += installment.amount
+        companies_data[company_id]["total_amount"] += remaining
+        total_overdue_amount += remaining
     
     # Preencher informações de empresa
     companies = []

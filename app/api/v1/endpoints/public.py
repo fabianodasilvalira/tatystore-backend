@@ -13,6 +13,7 @@ from app.models.company import Company
 from app.models.user import User
 from app.models.role import Role
 from app.schemas.product import ProductPublicResponse
+from app.schemas.pagination import paginate
 
 router = APIRouter()
 
@@ -68,7 +69,7 @@ async def list_company_categories(
     ]
 
 
-@router.get("/companies/{company_slug}/products", response_model=dict, summary="Listar produtos de uma empresa (público)")
+@router.get("/companies/{company_slug}/products", summary="Listar produtos de uma empresa (público)")
 async def list_company_products(
     company_slug: str,
     search: Optional[str] = None,
@@ -122,14 +123,10 @@ async def list_company_products(
     else:
         products = query.limit(limit).all()
     
-    from app.schemas.product import ProductPublicResponse
-    products_data = [ProductPublicResponse.model_validate(p).model_dump() for p in products]
-    
-    from app.schemas.pagination import paginate
-    return paginate(products_data, total, skip, limit)
+    return [ProductPublicResponse.model_validate(p).model_dump() for p in products]
 
 
-@router.get("/companies/{company_slug}/categories/{category_id}/products", response_model=dict, summary="Listar produtos de uma categoria (público)")
+@router.get("/companies/{company_slug}/categories/{category_id}/products", summary="Listar produtos de uma categoria (público)")
 async def list_company_category_products(
     company_slug: str,
     category_id: int,
@@ -189,11 +186,7 @@ async def list_company_category_products(
     else:
         products = query.limit(limit).all()
     
-    from app.schemas.product import ProductPublicResponse
-    products_data = [ProductPublicResponse.model_validate(p).model_dump() for p in products]
-    
-    from app.schemas.pagination import paginate
-    return paginate(products_data, total, skip, limit)
+    return [ProductPublicResponse.model_validate(p).model_dump() for p in products]
 
 
 @router.get("/companies/{company_slug}/products/{product_id}", response_model=ProductPublicResponse, summary="Obter detalhes de um produto (público)")

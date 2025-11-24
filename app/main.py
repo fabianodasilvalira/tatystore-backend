@@ -113,7 +113,7 @@ app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
     lifespan=lifespan,
-    redirect_slashes=False,
+    redirect_slashes=True,
     swagger_ui_parameters={
         "persistAuthorization": True,
         "defaultModelsExpandDepth": -1,

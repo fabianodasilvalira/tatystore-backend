@@ -137,6 +137,74 @@ def search_products(
     ]
 
 
+@router.get("/search-by-barcode", response_model=dict, summary="Buscar produto por código de barras")
+def search_by_barcode_query(
+    barcode: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    **Buscar Produto por Código de Barras (Query Parameter)**
+    
+    Busca um produto pelo código de barras usando query parameter.
+    
+    **Isolamento:** Apenas produtos da mesma empresa
+    
+    **Parâmetros:**
+    - `barcode`: Código de barras do produto
+    
+    **Retorna:** Dados do produto ou 404 se não encontrado
+    
+    **Exemplo:** GET /products/search-by-barcode?barcode=7891234567890
+    """
+    product = db.query(Product).filter(
+        Product.company_id == current_user.company_id,
+        Product.barcode == barcode
+    ).first()
+    
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Produto não encontrado"
+        )
+    
+    return ProductResponse.model_validate(product).model_dump()
+
+
+@router.get("/barcode/{barcode}", response_model=dict, summary="Buscar produto por código de barras (path)")
+def search_by_barcode_path(
+    barcode: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    **Buscar Produto por Código de Barras (Path Parameter)**
+    
+    Busca um produto pelo código de barras usando path parameter.
+    
+    **Isolamento:** Apenas produtos da mesma empresa
+    
+    **Parâmetros:**
+    - `barcode`: Código de barras do produto
+    
+    **Retorna:** Dados do produto ou 404 se não encontrado
+    
+    **Exemplo:** GET /products/barcode/7891234567890
+    """
+    product = db.query(Product).filter(
+        Product.company_id == current_user.company_id,
+        Product.barcode == barcode
+    ).first()
+    
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Produto não encontrado"
+        )
+    
+    return ProductResponse.model_validate(product).model_dump()
+
+
 @router.get("/low-stock", response_model=List[dict], summary="Produtos com baixo estoque")
 def get_low_stock_products(
         category_id: Optional[int] = None,
@@ -216,9 +284,7 @@ def get_products_on_sale(
             limit = 200
         products = query.offset(skip).limit(limit).all()
 
-    products_data = [ProductResponse.model_validate(p).model_dump() for p in products]
-    
-    return paginate(products_data, total, skip, limit)
+    return [ProductResponse.model_validate(p).model_dump() for p in products]
 
 
 @router.get("/", summary="Listar produtos da empresa")
@@ -241,7 +307,7 @@ def list_products(
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
 
-    **Resposta:** Lista de produtos com marca e imagem + metadados de paginação
+    **Resposta:** Lista de produtos com marca e imagem
 
     **Nota:** Para buscar produtos durante vendas, use /search
     """
@@ -260,15 +326,13 @@ def list_products(
             limit = 1000
         products = query.offset(skip).limit(limit).all()
 
-    products_data = [ProductResponse.model_validate(product).model_dump() for product in products]
-
-    return paginate(products_data, total, skip, limit)
+    return [ProductResponse.model_validate(product).model_dump() for product in products]
 
 
 @router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED, summary="Criar novo produto")
 def create_product(
         product_data: ProductCreate,
-        current_user: User = Depends(require_role("admin", "gerente")),
+        current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
         db: Session = Depends(get_db)
 ):
     """
@@ -281,7 +345,7 @@ def create_product(
     **Formato SKU:** {CATEGORIA}-{PRODUTO}-{SEQUENCIAL}
     - Exemplo: ELE-NOTE-001, ALI-ARRO-002
 
-    **Requer:** Admin ou Gerente
+    **Requer:** Admin, Gerente ou Vendedor
 
     **Controle de Estoque:** O estoque inicial é definido no cadastro
 
@@ -633,6 +697,4 @@ def get_products_by_category(
             limit = 200
         products = query.offset(skip).limit(limit).all()
 
-    products_data = [ProductResponse.model_validate(p).model_dump() for p in products]
-    
-    return paginate(products_data, total, skip, limit)
+    return [ProductResponse.model_validate(p).model_dump() for p in products]

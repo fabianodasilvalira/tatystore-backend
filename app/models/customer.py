@@ -2,7 +2,7 @@
 Modelo Customer - Clientes
 Cada cliente pertence a uma empresa
 """
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Index, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -11,6 +11,13 @@ from app.core.database import Base
 
 class Customer(Base):
     __tablename__ = "customers"
+    
+    __table_args__ = (
+        # Constraint de email único por empresa
+        UniqueConstraint('email', 'company_id', name='uq_customer_email_company'),
+        # Constraint de CPF único por empresa
+        UniqueConstraint('cpf', 'company_id', name='uq_customer_cpf_company'),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)

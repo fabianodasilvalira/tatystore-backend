@@ -77,7 +77,7 @@ async def configure_pix(
 async def generate_qrcode(
     sale_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "gerente"))
+    current_user: User = Depends(require_role("admin"))
 ):
     """
     **Gerar QR Code PIX**
@@ -136,7 +136,7 @@ async def upload_pix_receipt(
     sale_id: int,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "gerente"))
+    current_user: User = Depends(require_role("admin"))
 ):
     """
     **Upload de Comprovante PIX**

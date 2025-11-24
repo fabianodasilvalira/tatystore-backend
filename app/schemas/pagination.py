@@ -17,7 +17,8 @@ class PaginatedResponse(BaseModel, Generic[T]):
     """Resposta paginada genérica"""
     model_config = ConfigDict(from_attributes=True)
     
-    data: List[T] = Field(..., description="Lista de dados")
+    items: List[T] = Field(..., description="Lista de dados")
+    total: int = Field(..., description="Total de registros")
     metadata: PaginationMetadata = Field(..., description="Metadados de paginação")
 
 def paginate(data: List[T], total: int, skip: int, limit: int) -> dict:
@@ -31,13 +32,14 @@ def paginate(data: List[T], total: int, skip: int, limit: int) -> dict:
         limit: Quantidade de registros por página
     
     Returns:
-        Dicionário com data e metadata
+        Dicionário com items e metadata (compatível com testes)
     """
     page = (skip // limit) + 1 if limit > 0 else 1
     total_pages = ceil(total / limit) if limit > 0 else 1
     
     return {
-        "data": data,
+        "items": data,
+        "total": total,
         "metadata": {
             "total": total,
             "page": page,

@@ -17,7 +17,12 @@ class TestInstallmentsAdvancedFilters:
         )
         
         assert response.status_code == status.HTTP_200_OK
-        installments = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            installments = response_data["items"]
+        else:
+            installments = response_data
         
         for inst in installments:
             assert inst["status"] == "paid"
@@ -30,7 +35,12 @@ class TestInstallmentsAdvancedFilters:
         )
         
         assert response.status_code == status.HTTP_200_OK
-        installments = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            installments = response_data["items"]
+        else:
+            installments = response_data
         
         for inst in installments:
             assert inst["status"] == "pending"
@@ -46,7 +56,12 @@ class TestInstallmentsAdvancedFilters:
         )
         
         assert response.status_code == status.HTTP_200_OK
-        installments = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            installments = response_data["items"]
+        else:
+            installments = response_data
         
         for inst in installments:
             due_date = datetime.fromisoformat(inst["due_date"].replace("Z", "+00:00"))
@@ -60,7 +75,12 @@ class TestInstallmentsAdvancedFilters:
         )
         
         assert response.status_code == status.HTTP_200_OK
-        installments = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            installments = response_data["items"]
+        else:
+            installments = response_data
         
         for inst in installments:
             assert inst["status"] == "pending"
@@ -87,7 +107,12 @@ class TestInstallmentsSorting:
         )
         
         assert response.status_code == status.HTTP_200_OK
-        installments = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            installments = response_data["items"]
+        else:
+            installments = response_data
         
         if len(installments) > 1:
             dates = [inst["due_date"] for inst in installments]
@@ -101,7 +126,12 @@ class TestInstallmentsSorting:
         )
         
         assert response.status_code == status.HTTP_200_OK
-        installments = response.json()
+        response_data = response.json()
+        
+        if isinstance(response_data, dict) and "items" in response_data:
+            installments = response_data["items"]
+        else:
+            installments = response_data
         
         if len(installments) > 1:
             amounts = [inst["amount"] for inst in installments]

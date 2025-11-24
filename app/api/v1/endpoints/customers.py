@@ -5,32 +5,62 @@ CRUD com isolamento por empresa
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, date as date_type
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.models.customer import Customer
 from app.models.installment import Installment, InstallmentStatus
+from app.models.installment_payment import InstallmentPayment, InstallmentPaymentStatus
 from app.schemas.customer import CustomerCreate, CustomerUpdate, CustomerResponse
 from sqlalchemy import func, select
 from app.schemas.pagination import paginate
+from app.api.v1.endpoints.installments import _calculate_installment_balance
 
 router = APIRouter()
+
+
+def _calculate_customer_debt(db: Session, customer_id: int) -> tuple[float, float]:
+    """
+    Calcula débito total e vencido do cliente considerando pagamentos parciais.
+    Retorna: (total_debt, total_due)
+    - total_debt: soma de saldos de TODAS parcelas não pagas
+    - total_due: soma de saldos de parcelas VENCIDAS
+    """
+    # Todas as parcelas pendentes ou vencidas
+    pending_overdue_installments = db.query(Installment).filter(
+        Installment.customer_id == customer_id,
+        Installment.status.in_([InstallmentStatus.PENDING, InstallmentStatus.OVERDUE])
+    ).all()
+    
+    total_debt = 0.0
+    total_due = 0.0
+    today = date_type.today()
+    
+    for installment in pending_overdue_installments:
+        _, remaining = _calculate_installment_balance(installment)
+        
+        total_debt += remaining
+        
+        if installment.status == InstallmentStatus.OVERDUE or installment.due_date < today:
+            total_due += remaining
+    
+    return total_debt, total_due
 
 
 @router.post("/", response_model=CustomerResponse, status_code=status.HTTP_201_CREATED, summary="Criar novo cliente")
 async def create_customer(
     customer_data: CustomerCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_role("admin", "gerente"))
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor"))
 ):
     """
     **Cadastrar Novo Cliente**
     
     Cria um novo cliente vinculado à empresa do usuário autenticado.
     
-    **Requer:** Admin ou Gerente
+    **Requer:** Admin, Gerente ou Vendedor
     """
     # Verificar se email ou CPF já existem na empresa
     if customer_data.email:
@@ -87,7 +117,7 @@ async def list_customers(
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     
-    **Resposta:** Lista de clientes com metadados de paginação
+    **Resposta:** Lista de clientes paginada
     """
     query = db.query(Customer).filter(
         Customer.company_id == current_user.company_id
@@ -113,14 +143,12 @@ async def list_customers(
     
     result = []
     for customer in customers:
-        total_due = db.query(func.sum(Installment.amount)).filter(
-            Installment.customer_id == customer.id,
-            Installment.status.in_([InstallmentStatus.PENDING, InstallmentStatus.OVERDUE])
-        ).scalar() or 0.0
+        total_debt, total_due = _calculate_customer_debt(db, customer.id)
         
         result.append({
             **CustomerResponse.model_validate(customer).model_dump(),
-            "total_debt": float(total_due)
+            "total_debt": float(total_debt),
+            "total_due": float(total_due)
         })
     
     return paginate(result, total, skip, limit)
@@ -135,7 +163,7 @@ async def get_customer(
     """
     **Obter Dados de um Cliente**
     
-    Retorna informações detalhadas do cliente incluindo dívidas pendentes.
+    Retorna informações detalhadas do cliente incluindo dívidas pendentes e vencidas.
     """
     customer = db.query(Customer).filter(Customer.id == customer_id).first()
     
@@ -152,15 +180,12 @@ async def get_customer(
             detail="Recurso não encontrado"
         )
     
-    # Obter dívidas
-    total_due = db.query(func.sum(Installment.amount)).filter(
-        Installment.customer_id == customer.id,
-        Installment.status.in_([InstallmentStatus.PENDING, InstallmentStatus.OVERDUE])
-    ).scalar() or 0.0
+    total_debt, total_due = _calculate_customer_debt(db, customer.id)
     
     return {
         **CustomerResponse.model_validate(customer).model_dump(),
-        "total_debt": float(total_due)
+        "total_debt": float(total_debt),
+        "total_due": float(total_due)
     }
 
 
