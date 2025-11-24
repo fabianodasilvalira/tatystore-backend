@@ -23,13 +23,31 @@ class InstallmentPaymentCreate(BaseModel):
         examples=[38]
     )
 
-    amount_paid: float = Field(
-        ...,  # Campo obrigatório
+    amount_paid: Optional[float] = Field(
+        None,
         description="Valor a ser pago (pode ser parcial ou total)",
         gt=0,
         examples=[50.00, 100.00, 200.00]
     )
 
+    amount: Optional[float] = Field(
+        None,
+        description="Valor a ser pago (compatibilidade com frontend)",
+        gt=0,
+        examples=[50.00, 100.00, 200.00]
+    )
+
+    @model_validator(mode='after')
+    def validate_amount(self):
+        """Garantir que pelo menos um dos campos de valor foi fornecido"""
+        if self.amount_paid is None and self.amount is None:
+            raise ValueError("É necessário fornecer 'amount' ou 'amount_paid'")
+
+        # Se amount_paid não foi fornecido, usar amount
+        if self.amount_paid is None and self.amount is not None:
+            self.amount_paid = self.amount
+
+        return self
 
     model_config = ConfigDict(
         populate_by_name=True,
@@ -42,7 +60,7 @@ class InstallmentPaymentCreate(BaseModel):
                 },
                 {
                     "installment_id": 39,
-                    "amount_paid": 100.00
+                    "amount": 100.00
                 }
             ]
         }
