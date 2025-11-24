@@ -44,13 +44,13 @@ def create_installment_payment(
     Criar Pagamento de Parcela
 
     **Corpo da requisição:**
-    ```json
+    \`\`\`json
     {
         "installment_id": 1,
         "amount": 100.00,
         "payment_method": "cash"
     }
-```    """
+\`\`\`    """
 
     if not payment_data.installment_id:
         raise HTTPException(

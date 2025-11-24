@@ -9,65 +9,66 @@ from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.models.product import Product
 from app.models.company import Company
-from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse
+from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, CategoryInProduct
 from app.schemas.pagination import PaginatedResponse, paginate
 from app.core.storage_local import save_company_file
 
 router = APIRouter()
 
+
 def generate_sku(db: Session, company_id: int, product_name: str, category_id: Optional[int] = None) -> str:
     """
     Gera código SKU automaticamente seguindo o padrão:
-    
+
     Formato: {CATEGORIA_SIGLA}-{PRIMEIRAS_LETRAS_PRODUTO}-{SEQUENCIAL}
     Exemplo: ELE-NOTE-001, ALI-ARRO-002, GER-CAFE-015
-    
+
     Regras:
     - Categoria: 3 primeiras letras da categoria (uppercase) ou "GER" para produtos sem categoria
     - Produto: 4 primeiras letras do nome do produto (uppercase, removendo espaços)
     - Sequencial: Número sequencial de 3 dígitos baseado na quantidade de produtos da empresa
     """
     from app.models.category import Category
-    
+
     # Obter sigla da categoria
     if category_id:
         category = db.query(Category).filter(Category.id == category_id).first()
         category_prefix = category.name[:3].upper() if category else "GER"
     else:
         category_prefix = "GER"
-    
+
     # Obter primeiras letras do produto (remover espaços e caracteres especiais)
     product_clean = ''.join(c for c in product_name if c.isalnum() or c.isspace())
     product_words = product_clean.split()
-    
+
     if len(product_words) >= 2:
         # Se tiver 2+ palavras, pegar 2 letras de cada uma das 2 primeiras
         product_prefix = (product_words[0][:2] + product_words[1][:2]).upper()
     else:
         # Se tiver 1 palavra, pegar as 4 primeiras letras
         product_prefix = product_clean[:4].upper()
-    
+
     # Garantir que o prefixo do produto tenha 4 caracteres
     product_prefix = product_prefix.ljust(4, 'X')[:4]
-    
+
     # Contar produtos da empresa para gerar sequencial
     product_count = db.query(Product).filter(Product.company_id == company_id).count()
     sequential = str(product_count + 1).zfill(3)
-    
+
     # Gerar SKU
     sku = f"{category_prefix}-{product_prefix}-{sequential}"
-    
+
     # Verificar se SKU já existe (improvável mas possível)
     existing = db.query(Product).filter(
         Product.company_id == company_id,
         Product.sku == sku
     ).first()
-    
+
     # Se já existir, adicionar timestamp para garantir unicidade
     if existing:
         timestamp = str(int(datetime.utcnow().timestamp()))[-4:]
         sku = f"{category_prefix}-{product_prefix}-{timestamp}"
-    
+
     return sku
 
 
@@ -116,9 +117,9 @@ def search_products(
 
     products = query.order_by(Product.name.asc()).limit(limit).all()
 
-    # Retornar apenas campos essenciais para performance
-    return [
-        {
+    result = []
+    for p in products:
+        product_data = {
             "id": p.id,
             "name": p.name,
             "price": float(p.sale_price),
@@ -133,76 +134,94 @@ def search_products(
             "is_on_sale": p.is_on_sale,
             "promotional_price": float(p.promotional_price) if p.promotional_price else None
         }
-        for p in products
-    ]
+        # Adicionar informações da categoria se existir
+        if p.category:
+            from app.schemas.product import CategoryInProduct
+            product_data["category"] = CategoryInProduct.model_validate(p.category).model_dump()
+        else:
+            product_data["category"] = None
+
+        result.append(product_data)
+
+    return result
 
 
 @router.get("/search-by-barcode", response_model=dict, summary="Buscar produto por código de barras")
 def search_by_barcode_query(
-    barcode: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        barcode: str,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """
     **Buscar Produto por Código de Barras (Query Parameter)**
-    
+
     Busca um produto pelo código de barras usando query parameter.
-    
+
     **Isolamento:** Apenas produtos da mesma empresa
-    
+
     **Parâmetros:**
     - `barcode`: Código de barras do produto
-    
+
     **Retorna:** Dados do produto ou 404 se não encontrado
-    
+
     **Exemplo:** GET /products/search-by-barcode?barcode=7891234567890
     """
     product = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.barcode == barcode
     ).first()
-    
+
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Produto não encontrado"
         )
-    
-    return ProductResponse.model_validate(product).model_dump()
+
+    product_dict = ProductResponse.model_validate(product).model_dump()
+    if product.category:
+        from app.schemas.product import CategoryInProduct
+        product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
+
+    return product_dict
 
 
 @router.get("/barcode/{barcode}", response_model=dict, summary="Buscar produto por código de barras (path)")
 def search_by_barcode_path(
-    barcode: str,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db)
+        barcode: str,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
 ):
     """
     **Buscar Produto por Código de Barras (Path Parameter)**
-    
+
     Busca um produto pelo código de barras usando path parameter.
-    
+
     **Isolamento:** Apenas produtos da mesma empresa
-    
+
     **Parâmetros:**
     - `barcode`: Código de barras do produto
-    
+
     **Retorna:** Dados do produto ou 404 se não encontrado
-    
+
     **Exemplo:** GET /products/barcode/7891234567890
     """
     product = db.query(Product).filter(
         Product.company_id == current_user.company_id,
         Product.barcode == barcode
     ).first()
-    
+
     if not product:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Produto não encontrado"
         )
-    
-    return ProductResponse.model_validate(product).model_dump()
+
+    product_dict = ProductResponse.model_validate(product).model_dump()
+    if product.category:
+        from app.schemas.product import CategoryInProduct
+        product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
+
+    return product_dict
 
 
 @router.get("/low-stock", response_model=List[dict], summary="Produtos com baixo estoque")
@@ -275,7 +294,7 @@ def get_products_on_sale(
         query = query.filter(Product.category_id == category_id)
 
     total = query.count()
-    
+
     if limit is None:
         limit = total if total > 0 else 1
         products = query.offset(skip).all()
@@ -284,7 +303,15 @@ def get_products_on_sale(
             limit = 200
         products = query.offset(skip).limit(limit).all()
 
-    return [ProductResponse.model_validate(p).model_dump() for p in products]
+    products_data = []
+    for p in products:
+        product_dict = ProductResponse.model_validate(p).model_dump()
+        if p.category:
+            from app.schemas.product import CategoryInProduct
+            product_dict["category"] = CategoryInProduct.model_validate(p.category).model_dump()
+        products_data.append(product_dict)
+
+    return paginate(products_data, total, skip, limit)
 
 
 @router.get("/", summary="Listar produtos da empresa")
@@ -326,7 +353,16 @@ def list_products(
             limit = 1000
         products = query.offset(skip).limit(limit).all()
 
-    return [ProductResponse.model_validate(product).model_dump() for product in products]
+    products_data = []
+    for product in products:
+        product_dict = ProductResponse.model_validate(product).model_dump()
+        # Adicionar informações completas da categoria se existir
+        if product.category:
+            from app.schemas.product import CategoryInProduct
+            product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
+        products_data.append(product_dict)
+
+    return paginate(products_data, total, skip, limit)
 
 
 @router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED, summary="Criar novo produto")
@@ -339,9 +375,9 @@ def create_product(
     **Cadastrar Novo Produto**
 
     Cria um novo produto vinculado à empresa do usuário autenticado.
-    
+
     **NOVIDADE:** O código SKU é gerado automaticamente se não for informado.
-    
+
     **Formato SKU:** {CATEGORIA}-{PRODUTO}-{SEQUENCIAL}
     - Exemplo: ELE-NOTE-001, ALI-ARRO-002
 
@@ -362,7 +398,7 @@ def create_product(
             product_name=product_data.name,
             category_id=product_data.category_id
         )
-    
+
     # Criar produto
     product = Product(
         **product_data.model_dump(),
@@ -404,7 +440,12 @@ def get_product(
             detail="Produto não encontrado"
         )
 
-    return product
+    product_dict = ProductResponse.model_validate(product).model_dump()
+    if product.category:
+        from app.schemas.product import CategoryInProduct
+        product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
+
+    return product_dict
 
 
 @router.get("/{product_id}/profit-analysis", summary="Análise de lucro do produto")
@@ -494,7 +535,8 @@ def get_product_profit_analysis(
         "normal_profit": round(normal_profit, 2),
         "normal_margin_percentage": round(normal_margin_percentage, 2),
         "promotional_profit": round(promotional_profit, 2) if promotional_profit is not None else None,
-        "promotional_margin_percentage": round(promotional_margin_percentage, 2) if promotional_margin_percentage is not None else None,
+        "promotional_margin_percentage": round(promotional_margin_percentage,
+                                               2) if promotional_margin_percentage is not None else None,
         "active_profit": round(active_profit, 2),
         "active_margin_percentage": round(active_margin_percentage, 2),
         "active_price": round(active_price, 2),
@@ -673,7 +715,7 @@ def get_products_by_category(
     Lista produtos de uma categoria específica.
 
     **Isolamento:** Apenas produtos da mesma empresa
-    
+
     **Parâmetros:**
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
@@ -697,4 +739,12 @@ def get_products_by_category(
             limit = 200
         products = query.offset(skip).limit(limit).all()
 
-    return [ProductResponse.model_validate(p).model_dump() for p in products]
+    products_data = []
+    for p in products:
+        product_dict = ProductResponse.model_validate(p).model_dump()
+        if p.category:
+            from app.schemas.product import CategoryInProduct
+            product_dict["category"] = CategoryInProduct.model_validate(p.category).model_dump()
+        products_data.append(product_dict)
+
+    return products_data

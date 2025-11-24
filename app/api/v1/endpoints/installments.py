@@ -38,6 +38,16 @@ def _enrich_installment_with_balance(installment: Installment) -> dict:
     total_paid, remaining = _calculate_installment_balance(installment)
     data["total_paid"] = total_paid
     data["remaining_amount"] = remaining
+    data["payments"] = [
+        {
+            "id": p.id,
+            "amount_paid": float(p.amount_paid),
+            "paid_at": p.paid_at,
+            "status": p.status.value
+        }
+        for p in installment.payments if p.status == InstallmentPaymentStatus.COMPLETED
+    ]
+    data["payments_count"] = len(data["payments"])
     return data
 
 @router.get("/filter", summary="Filtrar parcelas com múltiplos critérios")
