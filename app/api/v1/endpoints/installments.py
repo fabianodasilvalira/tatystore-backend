@@ -226,7 +226,7 @@ def list_installments(
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     - `customer_id`: Filtrar por cliente (opcional)
     - `status_filter`: Filtrar por status (opcional)
-    - `search`: Buscar por nome do cliente (opcional)
+    - `search`: Buscar por nome do cliente ou email (opcional)
     """
     query = db.query(Installment).options(
         joinedload(Installment.payments),
@@ -245,10 +245,14 @@ def list_installments(
         except ValueError:
             raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
 
-    # CHANGE: Adicionado filtro de busca por nome do cliente
+    # CHANGE: Adicionar JOIN com Customer para que o filtro de busca funcione corretamente
+    # Sem o join, o filtro Customer.name.ilike() é ignorado e retorna todas as parcelas
     if search:
-        query = query.filter(
-            Customer.name.ilike(f"%{search}%")
+        query = query.join(Customer).filter(
+            or_(
+                Customer.name.ilike(f"%{search}%"),
+                Customer.email.ilike(f"%{search}%")
+            )
         )
 
     query = query.order_by(Installment.due_date.asc())
