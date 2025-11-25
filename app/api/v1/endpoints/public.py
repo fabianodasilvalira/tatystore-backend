@@ -115,15 +115,19 @@ async def list_company_products(
     
     total = query.count()
     
-    query = query.offset(skip)
-    
     if limit is None:
-        products = query.all()
         limit = total if total > 0 else 1
+        products = query.offset(skip).all()
     else:
-        products = query.limit(limit).all()
-    
-    return [ProductPublicResponse.model_validate(p).model_dump() for p in products]
+        if limit > 1000:
+            limit = 1000
+        products = query.offset(skip).limit(limit).all()
+
+    # Converter produtos para o schema público
+    products_data = [ProductPublicResponse.model_validate(p).model_dump() for p in products]
+
+    # Retornar usando a função paginate para formato consistente
+    return paginate(products_data, total, skip, limit)
 
 
 @router.get("/companies/{company_slug}/categories/{category_id}/products", summary="Listar produtos de uma categoria (público)")
@@ -136,10 +140,10 @@ async def list_company_category_products(
 ):
     """
     **Listar Produtos Públicos de uma Categoria**
-    
+
     Lista produtos de uma categoria específica sem autenticação.
     Útil para páginas de categoria em sites/apps.
-    
+
     **Parâmetros:**
     - `company_slug`: Slug único da empresa
     - `category_id`: ID da categoria
@@ -150,40 +154,42 @@ async def list_company_category_products(
         Company.slug == company_slug,
         Company.is_active == True
     ).first()
-    
+
     if not company:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Empresa não encontrada"
         )
-    
+
     # Verificar se categoria existe
     category = db.query(Category).filter(
         Category.id == category_id,
         Category.company_id == company.id,
         Category.is_active == True
     ).first()
-    
+
     if not category:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Categoria não encontrada"
         )
-    
+
     query = db.query(Product).filter(
         Product.company_id == company.id,
         Product.category_id == category_id,
         Product.is_active == True
     )
-    
+
     total = query.count()
-    
+
     query = query.offset(skip)
-    
+
     if limit is None:
         products = query.all()
         limit = total if total > 0 else 1
     else:
+        if limit > 1000:
+            limit = 1000
         products = query.limit(limit).all()
     
     return [ProductPublicResponse.model_validate(p).model_dump() for p in products]
