@@ -90,31 +90,37 @@ async def list_company_products(
     - `category_id`: Filtrar por categoria
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
+
+    **Retorna:**
+    - `items`: Produtos paginados
+    - `metadata`: Informações de paginação
+    - `promocao`: Array com TODOS os produtos em promoção (sem limite de paginação)
     """
     company = db.query(Company).filter(
         Company.slug == company_slug,
         Company.is_active == True
     ).first()
-    
+
     if not company:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Empresa não encontrada"
         )
-    
+
+    # Query base para produtos ativos
     query = db.query(Product).filter(
         Product.company_id == company.id,
         Product.is_active == True
     )
-    
+
     if search:
         query = query.filter(Product.name.ilike(f"%{search}%"))
-    
+
     if category_id:
         query = query.filter(Product.category_id == category_id)
-    
+
     total = query.count()
-    
+
     if limit is None:
         limit = total if total > 0 else 1
         products = query.offset(skip).all()
@@ -126,8 +132,21 @@ async def list_company_products(
     # Converter produtos para o schema público
     products_data = [ProductPublicResponse.model_validate(p).model_dump() for p in products]
 
-    # Retornar usando a função paginate para formato consistente
-    return paginate(products_data, total, skip, limit)
+    # Essa query sempre retorna todos os produtos em promoção da empresa, ignorando skip/limit
+    promotion_query = db.query(Product).filter(
+        Product.company_id == company.id,
+        Product.is_active == True,
+        Product.is_on_sale == True
+    )
+
+    products_on_promotion = promotion_query.all()
+    promotion_data = [ProductPublicResponse.model_validate(p).model_dump() for p in products_on_promotion]
+
+    # Retornar usando a função paginate para formato consistente, com array adicional de promoções
+    response = paginate(products_data, total, skip, limit)
+    response["promocao"] = promotion_data
+
+    return response
 
 
 @router.get("/companies/{company_slug}/categories/{category_id}/products", summary="Listar produtos de uma categoria (público)")
