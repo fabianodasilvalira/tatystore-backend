@@ -61,3 +61,11 @@ def format_datetime_fortaleza(dt: datetime, format_str: str = "%d/%m/%Y %H:%M:%S
     
     fortaleza_dt = localize_to_fortaleza(dt)
     return fortaleza_dt.strftime(format_str)
+
+
+def default_datetime_fortaleza() -> datetime:
+    """
+    Wrapper callable para usar em Column(DateTime, default=default_datetime_fortaleza)
+    SQLAlchemy chama essa função a cada novo registro
+    """
+    return get_now_fortaleza_naive()

@@ -3,10 +3,10 @@ Modelo Installment - Parcelas de Crediário
 """
 from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, Date
 from sqlalchemy.orm import relationship
-from datetime import datetime
 import enum
 
 from app.core.database import Base
+from app.core.datetime_utils import default_datetime_fortaleza
 
 
 class InstallmentStatus(str, enum.Enum):
@@ -33,12 +33,11 @@ class Installment(Base):
     
     status = Column(Enum(InstallmentStatus), default=InstallmentStatus.PENDING)
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=default_datetime_fortaleza)
+    updated_at = Column(DateTime, default=default_datetime_fortaleza, onupdate=default_datetime_fortaleza)
     
     # Relacionamentos
     sale = relationship("Sale", back_populates="installments")
     customer = relationship("Customer", back_populates="installments")
     company = relationship("Company")
-    # <CHANGE> Adicionado relacionamento com pagamentos parciais
     payments = relationship("InstallmentPayment", back_populates="installment", cascade="all, delete-orphan")

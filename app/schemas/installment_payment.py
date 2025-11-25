@@ -2,10 +2,11 @@
 Schemas Pydantic para InstallmentPayment
 Pagamentos parciais de parcelas
 """
-from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator, model_validator
+from pydantic import BaseModel, Field, ConfigDict, computed_field, field_validator, model_validator, field_serializer
 from datetime import datetime
 from typing import Optional
 from app.models.installment_payment import InstallmentPaymentStatus
+from app.core.datetime_utils import localize_to_fortaleza
 
 
 class InstallmentPaymentCreate(BaseModel):
@@ -82,6 +83,13 @@ class InstallmentPaymentOut(BaseModel):
         """Campo computado para compatibilidade com testes antigos"""
         return self.amount_paid
 
+    @field_serializer('paid_at', 'created_at')
+    def serialize_datetime(self, value: datetime) -> datetime:
+        """Converte datetimes de UTC para Fortaleza ao serializar"""
+        if value is None:
+            return None
+        return localize_to_fortaleza(value)
+
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -118,5 +126,12 @@ class InstallmentDetailOut(BaseModel):
         default=[],
         description="Histórico completo de pagamentos ordenado por data (mais recente primeiro)"
     )
+    
+    @field_serializer('due_date', 'paid_at', 'created_at')
+    def serialize_datetime(self, value: datetime) -> datetime:
+        """Converte datetimes de UTC para Fortaleza ao serializar"""
+        if value is None:
+            return None
+        return localize_to_fortaleza(value)
     
     model_config = ConfigDict(from_attributes=True)

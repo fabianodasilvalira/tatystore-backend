@@ -4,10 +4,10 @@ Suporta vendas à vista (cash), crediário (credit) e PIX
 """
 from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum
 from sqlalchemy.orm import relationship
-from datetime import datetime
 import enum
 
 from app.core.database import Base
+from app.core.datetime_utils import default_datetime_fortaleza
 
 
 class PaymentType(str, enum.Enum):
@@ -47,8 +47,8 @@ class Sale(Base):
     # Observações
     notes = Column(String(1000))
     
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=default_datetime_fortaleza)
+    updated_at = Column(DateTime, default=default_datetime_fortaleza, onupdate=default_datetime_fortaleza)
     
     # Relacionamentos
     customer = relationship("Customer", back_populates="sales")

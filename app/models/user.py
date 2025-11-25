@@ -4,9 +4,9 @@ Cada usuário pertence a uma empresa e tem um perfil
 """
 from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
 from sqlalchemy.orm import relationship
-from datetime import datetime
 
 from app.core.database import Base
+from app.core.datetime_utils import default_datetime_fortaleza
 
 
 class User(Base):
@@ -25,8 +25,8 @@ class User(Base):
     
     is_active = Column(Boolean, default=True)
     last_login_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=default_datetime_fortaleza)
+    updated_at = Column(DateTime, default=default_datetime_fortaleza, onupdate=default_datetime_fortaleza)
     
     # Relacionamentos
     company = relationship("Company", back_populates="users")
