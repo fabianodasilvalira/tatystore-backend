@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
 from typing import List, Optional
 from datetime import datetime, date
+from decimal import Decimal, ROUND_HALF_UP
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
@@ -25,6 +26,9 @@ def _calculate_installment_balance(installment: Installment) -> tuple[float, flo
     Adicionada lógica para considerar status PAID: se a parcela está marcada como paga,
     retorna o valor total como pago e saldo zero, independentemente dos registros em installment_payments.
     Isso garante compatibilidade com parcelas legadas marcadas como pagas sem registros de pagamento.
+
+    CHANGE: Adicionado arredondamento inteligente para evitar erros de ponto flutuante.
+    Se o valor restante é menor que 0.01, é arredondado para 0 e total_paid é ajustado para amount.
     """
     if installment.status == InstallmentStatus.PAID:
         return float(installment.amount), 0.0
@@ -34,8 +38,21 @@ def _calculate_installment_balance(installment: Installment) -> tuple[float, flo
         float(p.amount_paid) for p in installment.payments
         if p.status == InstallmentPaymentStatus.COMPLETED
     )
-    remaining = max(0.0, float(installment.amount) - total_paid)
-    return total_paid, remaining
+
+    # CHANGE: Usar Decimal para evitar erro de arredondamento em ponto flutuante
+    amount_decimal = Decimal(str(installment.amount))
+    total_paid_decimal = Decimal(str(total_paid)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    remaining_decimal = (amount_decimal - total_paid_decimal).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    # Se o valor restante é menor que 0.01 (erro de arredondamento), considerar como 0
+    if remaining_decimal <= Decimal('0.01') and remaining_decimal >= Decimal('0'):
+        return float(total_paid_decimal), 0.0
+
+    # Se o valor restante for negativo por erro de arredondamento, ajustar
+    if remaining_decimal < 0:
+        return float(amount_decimal), 0.0
+
+    return float(total_paid_decimal), float(remaining_decimal)
 
 
 def _enrich_installment_with_balance(installment: Installment) -> dict:

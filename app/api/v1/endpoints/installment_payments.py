@@ -90,10 +90,10 @@ def create_installment_payment(
             detail="Esta parcela já está totalmente paga"
         )
 
-    # Usar Decimal para evitar problemas de precisão com ponto flutuante
+    # CHANGE: Usar Decimal para evitar problemas de precisão com ponto flutuante
     amount_decimal = Decimal(str(amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     remaining_decimal = Decimal(str(remaining_amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    
+
     if amount_decimal > remaining_decimal:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -163,10 +163,10 @@ def register_installment_payment(
             detail="Esta parcela já está totalmente paga"
         )
 
-    # Usar Decimal para evitar problemas de precisão com ponto flutuante
+    # CHANGE: Usar Decimal para evitar problemas de precisão com ponto flutuante
     amount_decimal = Decimal(str(amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
     remaining_decimal = Decimal(str(remaining_amount)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
-    
+
     if amount_decimal > remaining_decimal:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -203,7 +203,7 @@ def list_installment_payments(
 ):
     """
     Listar Histórico de Pagamentos de uma Parcela
-    
+
     **Parâmetros:**
     - `skip`: Quantidade de registros a pular (padrão: 0)
     - `limit`: Quantidade máxima de registros (padrão: 100, máximo: 1000)
@@ -245,12 +245,15 @@ def get_installment_detail(
 ):
     """
     Obter Detalhes Completos da Parcela
-    
+
     Retorna informações da parcela incluindo:
     - Dados básicos da parcela
     - Total pago até o momento
     - Valor restante a pagar
     - Histórico completo de pagamentos
+
+    CHANGE: Agora retorna remaining_amount corretamente arredondado.
+    Se a parcela está totalmente paga, remaining_amount = 0.0
     """
     installment = db.query(Installment).filter(
         Installment.id == installment_id
@@ -303,7 +306,7 @@ def list_all_payments(
 ):
     """
     Listar Todos os Pagamentos de Parcelas da Empresa
-    
+
     **Parâmetros:**
     - `skip`: Quantidade de registros a pular (padrão: 0)
     - `limit`: Quantidade máxima de registros (padrão: 100, máximo: 1000)
