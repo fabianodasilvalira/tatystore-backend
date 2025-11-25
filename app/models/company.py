@@ -2,9 +2,8 @@
 Modelo Company - Empresas
 Multi-tenant: cada empresa é isolada
 """
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, func
 from sqlalchemy.orm import relationship
-from datetime import datetime
 
 from app.core.database import Base
 
@@ -24,8 +23,8 @@ class Company(Base):
     pix = Column(Text, nullable=True)  # Armazena JSON com pix_key, pix_type, etc
     
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     
     # Relacionamentos
     users = relationship("User", back_populates="company")

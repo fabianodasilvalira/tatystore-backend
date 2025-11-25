@@ -1,6 +1,7 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_serializer
 from typing import Optional, List
 from datetime import datetime, date
+from app.core.datetime_utils import localize_to_fortaleza
 
 
 class SaleItemIn(BaseModel):
@@ -81,6 +82,12 @@ class SaleOut(BaseModel):
     items: List[SaleItemOut]
     installments: List[InstallmentItemOut] = []
     customer: Optional[CustomerInSale] = None  # Dados completos do cliente
+
+    @field_serializer('created_at')
+    def serialize_created_at(self, value: datetime) -> datetime:
+        if value is None:
+            return None
+        return localize_to_fortaleza(value)
 
     model_config = ConfigDict(from_attributes=True)
 

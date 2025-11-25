@@ -1,6 +1,7 @@
 """
 Utilitários de Data/Hora com timezone configurável para Fortaleza - CE
 Centraliza a manipulação de datas no sistema para garantir consistência
+IMPORTANTE: Banco sempre salva em UTC, Python converte para Fortaleza apenas na exibição
 """
 from datetime import datetime, timezone, timedelta
 import pytz
@@ -16,7 +17,7 @@ UTC_TZ = pytz.UTC
 def get_now_fortaleza() -> datetime:
     """
     Retorna o datetime atual no timezone de Fortaleza com timezone info
-    Usado para criar novos registros no banco
+    Usado para lógica de negócio que precisa comparar datas
     """
     return datetime.now(FORTALEZA_TZ)
 
@@ -24,7 +25,7 @@ def get_now_fortaleza() -> datetime:
 def get_now_fortaleza_naive() -> datetime:
     """
     Retorna o datetime atual no timezone de Fortaleza SEM timezone info
-    Compatível com código legado que usa datetime.utcnow()
+    NUNCA use para salvar no banco - apenas para comparações em Python
     """
     return datetime.now(FORTALEZA_TZ).replace(tzinfo=None)
 
@@ -32,14 +33,15 @@ def get_now_fortaleza_naive() -> datetime:
 def get_now_utc() -> datetime:
     """
     Retorna o datetime atual em UTC com timezone info
-    Mantém compatibilidade com código que usa UTC
+    Mantém compatibilidade com código que usa UTC (ex: JWT)
     """
     return datetime.now(UTC_TZ)
 
 
 def localize_to_fortaleza(dt: datetime) -> datetime:
     """
-    Converte um datetime naive ou UTC para timezone de Fortaleza
+    Converte um datetime para timezone de Fortaleza
+    Se for naive, assume que é UTC
     """
     if dt is None:
         return None

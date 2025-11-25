@@ -2,9 +2,8 @@
 Modelo Product - Produtos
 Cada produto pertence a uma empresa
 """
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, func
 from sqlalchemy.orm import relationship
-from datetime import datetime
 
 from app.core.database import Base
 
@@ -35,8 +34,8 @@ class Product(Base):
     company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
     
     is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, server_default=func.now())
+    updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
     
     # Relacionamentos
     company = relationship("Company", back_populates="products")
