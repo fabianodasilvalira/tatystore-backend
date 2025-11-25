@@ -21,7 +21,15 @@ def _calculate_installment_balance(installment: Installment) -> tuple[float, flo
     Retorna: (total_pago, saldo_restante)
 
     Esta é a função centralizada usada em todo o sistema para calcular saldos.
+
+    Adicionada lógica para considerar status PAID: se a parcela está marcada como paga,
+    retorna o valor total como pago e saldo zero, independentemente dos registros em installment_payments.
+    Isso garante compatibilidade com parcelas legadas marcadas como pagas sem registros de pagamento.
     """
+    if installment.status == InstallmentStatus.PAID:
+        return float(installment.amount), 0.0
+
+    # Cálculo normal baseado em pagamentos registrados
     total_paid = sum(
         float(p.amount_paid) for p in installment.payments
         if p.status == InstallmentPaymentStatus.COMPLETED
