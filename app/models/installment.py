@@ -1,11 +1,12 @@
 """
 Modelo Installment - Parcelas de Crediário
 """
-from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, Date, text
+from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, Date
 from sqlalchemy.orm import relationship
 import enum
 
 from app.core.database import Base
+from app.core.datetime_utils import default_datetime_fortaleza
 
 
 class InstallmentStatus(str, enum.Enum):
@@ -32,8 +33,8 @@ class Installment(Base):
     
     status = Column(Enum(InstallmentStatus), default=InstallmentStatus.PENDING)
     
-    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
-    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"), onupdate=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
+    created_at = Column(DateTime, default=default_datetime_fortaleza)
+    updated_at = Column(DateTime, default=default_datetime_fortaleza, onupdate=default_datetime_fortaleza)
     
     # Relacionamentos
     sale = relationship("Sale", back_populates="installments")

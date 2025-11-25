@@ -1,10 +1,9 @@
 """
 Schemas Pydantic para Customer
 """
-from pydantic import BaseModel, EmailStr, Field, ConfigDict, field_serializer
+from pydantic import BaseModel, EmailStr, Field, ConfigDict
 from datetime import datetime
 from typing import Optional
-from app.core.datetime_utils import localize_to_fortaleza
 
 
 class CustomerBase(BaseModel):
@@ -33,11 +32,5 @@ class CustomerResponse(CustomerBase):
     company_id: int
     is_active: bool
     created_at: datetime
-    
-    @field_serializer('created_at')
-    def serialize_created_at(self, value: datetime) -> datetime:
-        if value is None:
-            return None
-        return localize_to_fortaleza(value)
     
     model_config = ConfigDict(from_attributes=True)

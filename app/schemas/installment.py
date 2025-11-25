@@ -1,11 +1,10 @@
 """
 Schemas Pydantic para Installment
 """
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict
 from datetime import datetime, date
 from typing import Optional, List
 from app.models.installment import InstallmentStatus
-from app.core.datetime_utils import localize_to_fortaleza
 
 
 class PaymentInInstallment(BaseModel):
@@ -14,12 +13,6 @@ class PaymentInInstallment(BaseModel):
     amount_paid: float
     paid_at: datetime
     status: str
-    
-    @field_serializer('paid_at')
-    def serialize_paid_at(self, value: datetime) -> datetime:
-        if value is None:
-            return None
-        return localize_to_fortaleza(value)
     
     model_config = ConfigDict(from_attributes=True)
 
@@ -51,14 +44,7 @@ class InstallmentOut(BaseModel):
     payments: List[PaymentInInstallment] = []
     payments_count: int = 0
     
-    @field_serializer('paid_at', 'created_at')
-    def serialize_datetime(self, value: datetime) -> datetime:
-        if value is None:
-            return None
-        return localize_to_fortaleza(value)
-    
     model_config = ConfigDict(from_attributes=True)
-
 
 class InstallmentPayIn(BaseModel):
     """Schema para registrar pagamento de parcela"""
