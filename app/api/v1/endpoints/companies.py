@@ -18,6 +18,7 @@ from app.services.company import CompanyService
 from app.core.security import hash_password
 from app.schemas.pagination import paginate
 from app.core.storage_local import save_company_file
+from app.core.datetime_utils import get_now_fortaleza_naive
 
 router = APIRouter()
 
@@ -267,7 +268,7 @@ def update_company(
     for field, value in update_data.items():
         setattr(company, field, value)
     
-    company.updated_at = datetime.utcnow()
+    company.updated_at = get_now_fortaleza_naive()
     db.commit()
     db.refresh(company)
     
@@ -296,7 +297,7 @@ def delete_company(
         )
     
     company.is_active = False
-    company.updated_at = datetime.utcnow()
+    company.updated_at = get_now_fortaleza_naive()
     db.commit()
     
     return None
@@ -373,7 +374,7 @@ async def upload_company_logo(
     
     # Atualizar URL do logo na empresa
     company.logo_url = logo_url
-    company.updated_at = datetime.utcnow()
+    company.updated_at = get_now_fortaleza_naive()
     db.commit()
     db.refresh(company)
     

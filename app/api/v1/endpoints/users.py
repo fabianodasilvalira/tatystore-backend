@@ -15,6 +15,7 @@ from app.models.user import User
 from app.models.role import Role
 from app.schemas.user_schemas import UserCreate, UserUpdate, UserResponse
 from app.schemas.pagination import paginate
+from app.core.datetime_utils import get_now_fortaleza_naive
 
 router = APIRouter()
 
@@ -221,7 +222,7 @@ async def update_user(
         if field != "password":
             setattr(user, field, value)
     
-    user.updated_at = datetime.utcnow()
+    user.updated_at = get_now_fortaleza_naive()
     db.commit()
     db.refresh(user)
     
@@ -269,7 +270,7 @@ async def delete_user(
     
     
     user.is_active = False
-    user.updated_at = datetime.utcnow()
+    user.updated_at = get_now_fortaleza_naive()
     db.commit()
     
     return None

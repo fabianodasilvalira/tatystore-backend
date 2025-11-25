@@ -14,6 +14,7 @@ from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.models.company import Company
 from app.models.sale import Sale
+from app.core.datetime_utils import get_now_fortaleza_naive
 
 router = APIRouter()
 
@@ -56,12 +57,12 @@ async def configure_pix(
     pix_config = {
         "pix_key": pix_key,
         "pix_type": pix_type.lower(),
-        "configured_at": datetime.utcnow().isoformat(),
+        "configured_at": get_now_fortaleza_naive().isoformat(),
         "configured_by": current_user.email
     }
     
     company.pix = json.dumps(pix_config)
-    company.updated_at = datetime.utcnow()
+    company.updated_at = get_now_fortaleza_naive()
     db.commit()
     db.refresh(company)
     
@@ -174,7 +175,7 @@ async def upload_pix_receipt(
     os.makedirs(upload_dir, exist_ok=True)
     
     # Salvar arquivo
-    filename = f"pix_receipt_{sale_id}_{datetime.utcnow().timestamp()}"
+    filename = f"pix_receipt_{sale_id}_{get_now_fortaleza_naive().timestamp()}"
     filepath = os.path.join(upload_dir, filename)
     
     with open(filepath, "wb") as f:

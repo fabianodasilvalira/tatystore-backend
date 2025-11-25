@@ -18,6 +18,7 @@ from app.models.sale import Sale, SaleItem, PaymentType, SaleStatus
 from app.models.installment import Installment, InstallmentStatus
 from app.core.security import hash_password
 from app.core.config import get_settings
+from app.core.datetime_utils import get_now_fortaleza_naive
 
 settings = get_settings()
 
@@ -208,7 +209,7 @@ def seed_data(db: Session):
         ]
         
         category_map = {}
-        current_time = datetime.utcnow()
+        current_time = get_now_fortaleza_naive()
         for company in [taty, carol]:
             company_categories = []
             for name, description in categories_data:
@@ -615,7 +616,7 @@ def seed_data(db: Session):
                     total_amount=total,
                     installments_count=installments_count,
                     notes=f"Venda de teste - {payment_type.value}",
-                    created_at=datetime.utcnow() - timedelta(days=days_ago)
+                    created_at=get_now_fortaleza_naive() - timedelta(days=days_ago)
                 )
                 db.add(sale)
                 db.flush()
@@ -639,14 +640,14 @@ def seed_data(db: Session):
                     installment_amount = total / installments_count
                     
                     for inst_num in range(1, installments_count + 1):
-                        due_date = (datetime.utcnow() - timedelta(days=days_ago) + timedelta(days=30 * inst_num)).date()
-                        days_until_due = (due_date - datetime.utcnow().date()).days
+                        due_date = (get_now_fortaleza_naive() - timedelta(days=days_ago) + timedelta(days=30 * inst_num)).date()
+                        days_until_due = (due_date - get_now_fortaleza_naive().date()).days
                         
                         # Determinar status da parcela
                         if inst_num == 1 and days_ago >= 60:
                             # Primeira parcela de vendas antigas: paga
                             status = InstallmentStatus.PAID
-                            paid_at = datetime.utcnow() - timedelta(days=days_ago - 30)
+                            paid_at = get_now_fortaleza_naive() - timedelta(days=days_ago - 30)
                         elif days_until_due < -10:
                             # Parcelas muito vencidas
                             status = InstallmentStatus.OVERDUE
@@ -692,7 +693,7 @@ def seed_data(db: Session):
                     total_amount=total,
                     installments_count=1,
                     notes="Venda cancelada para teste",
-                    created_at=datetime.utcnow() - timedelta(days=days_ago)
+                    created_at=get_now_fortaleza_naive() - timedelta(days=days_ago)
                 )
                 db.add(cancelled_sale)
                 db.flush()

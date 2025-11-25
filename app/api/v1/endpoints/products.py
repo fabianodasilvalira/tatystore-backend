@@ -12,6 +12,9 @@ from app.models.company import Company
 from app.schemas.product import ProductCreate, ProductUpdate, ProductResponse, CategoryInProduct
 from app.schemas.pagination import PaginatedResponse, paginate
 from app.core.storage_local import save_company_file
+from app.core.datetime_utils import get_now_fortaleza_naive
+
+from app.models.category import Category
 
 router = APIRouter()
 
@@ -28,8 +31,6 @@ def generate_sku(db: Session, company_id: int, product_name: str, category_id: O
     - Produto: 4 primeiras letras do nome do produto (uppercase, removendo espaços)
     - Sequencial: Número sequencial de 3 dígitos baseado na quantidade de produtos da empresa
     """
-    from app.models.category import Category
-
     # Obter sigla da categoria
     if category_id:
         category = db.query(Category).filter(Category.id == category_id).first()
@@ -66,7 +67,7 @@ def generate_sku(db: Session, company_id: int, product_name: str, category_id: O
 
     # Se já existir, adicionar timestamp para garantir unicidade
     if existing:
-        timestamp = str(int(datetime.utcnow().timestamp()))[-4:]
+        timestamp = str(int(get_now_fortaleza_naive().timestamp()))[-4:]
         sku = f"{category_prefix}-{product_prefix}-{timestamp}"
 
     return sku
@@ -136,7 +137,6 @@ def search_products(
         }
         # Adicionar informações da categoria se existir
         if p.category:
-            from app.schemas.product import CategoryInProduct
             product_data["category"] = CategoryInProduct.model_validate(p.category).model_dump()
         else:
             product_data["category"] = None
@@ -179,7 +179,6 @@ def search_by_barcode_query(
 
     product_dict = ProductResponse.model_validate(product).model_dump()
     if product.category:
-        from app.schemas.product import CategoryInProduct
         product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
 
     return product_dict
@@ -218,7 +217,6 @@ def search_by_barcode_path(
 
     product_dict = ProductResponse.model_validate(product).model_dump()
     if product.category:
-        from app.schemas.product import CategoryInProduct
         product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
 
     return product_dict
@@ -307,7 +305,6 @@ def get_products_on_sale(
     for p in products:
         product_dict = ProductResponse.model_validate(p).model_dump()
         if p.category:
-            from app.schemas.product import CategoryInProduct
             product_dict["category"] = CategoryInProduct.model_validate(p.category).model_dump()
         products_data.append(product_dict)
 
@@ -358,7 +355,6 @@ def list_products(
         product_dict = ProductResponse.model_validate(product).model_dump()
         # Adicionar informações completas da categoria se existir
         if product.category:
-            from app.schemas.product import CategoryInProduct
             product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
         products_data.append(product_dict)
 
@@ -442,7 +438,6 @@ def get_product(
 
     product_dict = ProductResponse.model_validate(product).model_dump()
     if product.category:
-        from app.schemas.product import CategoryInProduct
         product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
 
     return product_dict
@@ -683,7 +678,7 @@ async def upload_product_image(
 
     # Gerar nome único para o arquivo
     file_extension = file.filename.split(".")[-1]
-    filename = f"product_{product_id}_{int(datetime.utcnow().timestamp())}.{file_extension}"
+    filename = f"product_{product_id}_{int(get_now_fortaleza_naive().timestamp())}.{file_extension}"
 
     image_url = save_company_file(
         company_slug=company.slug,
@@ -743,7 +738,6 @@ def get_products_by_category(
     for p in products:
         product_dict = ProductResponse.model_validate(p).model_dump()
         if p.category:
-            from app.schemas.product import CategoryInProduct
             product_dict["category"] = CategoryInProduct.model_validate(p.category).model_dump()
         products_data.append(product_dict)
 

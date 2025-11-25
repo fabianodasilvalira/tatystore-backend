@@ -17,6 +17,7 @@ from app.schemas.customer import CustomerCreate, CustomerUpdate, CustomerRespons
 from sqlalchemy import func, select
 from app.schemas.pagination import paginate
 from app.api.v1.endpoints.installments import _calculate_installment_balance
+from app.core.datetime_utils import get_now_fortaleza_naive
 
 router = APIRouter()
 
@@ -223,7 +224,7 @@ async def update_customer(
     for field, value in update_data.items():
         setattr(customer, field, value)
     
-    customer.updated_at = datetime.utcnow()
+    customer.updated_at = get_now_fortaleza_naive()
     db.commit()
     db.refresh(customer)
     
@@ -259,7 +260,7 @@ async def delete_customer(
         )
     
     customer.is_active = False
-    customer.updated_at = datetime.utcnow()
+    customer.updated_at = get_now_fortaleza_naive()
     db.commit()
     
     return None
