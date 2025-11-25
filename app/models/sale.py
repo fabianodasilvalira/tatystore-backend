@@ -2,12 +2,11 @@
 Modelo Sale e SaleItem - Vendas
 Suporta vendas à vista (cash), crediário (credit) e PIX
 """
-from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum
+from sqlalchemy import Column, Integer, String, Float, ForeignKey, DateTime, Enum, text
 from sqlalchemy.orm import relationship
 import enum
 
 from app.core.database import Base
-from app.core.datetime_utils import default_datetime_fortaleza
 
 
 class PaymentType(str, enum.Enum):
@@ -47,8 +46,8 @@ class Sale(Base):
     # Observações
     notes = Column(String(1000))
     
-    created_at = Column(DateTime, default=default_datetime_fortaleza)
-    updated_at = Column(DateTime, default=default_datetime_fortaleza, onupdate=default_datetime_fortaleza)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
+    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"), onupdate=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
     
     # Relacionamentos
     customer = relationship("Customer", back_populates="sales")

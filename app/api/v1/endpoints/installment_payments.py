@@ -8,7 +8,6 @@ from decimal import Decimal, ROUND_HALF_UP
 from app.core.database import get_db
 from app.core.deps import get_current_user
 from app.core.messages import Messages
-from app.core.datetime_utils import get_now_fortaleza_naive
 from app.models.user import User
 from app.models.installment import Installment, InstallmentStatus
 from app.models.installment_payment import InstallmentPayment, InstallmentPaymentStatus
@@ -104,7 +103,6 @@ def create_installment_payment(
     db_payment = InstallmentPayment(
         installment_id=installment.id,
         amount_paid=amount,
-        paid_at=get_now_fortaleza_naive(),  # Usar Fortaleza em vez de UTC
         status=InstallmentPaymentStatus.COMPLETED,
         company_id=current_user.company_id
     )
@@ -120,7 +118,6 @@ def create_installment_payment(
 
     if new_total_decimal >= amount_decimal_compare:
         installment.status = InstallmentStatus.PAID
-        installment.paid_at = get_now_fortaleza_naive()  # Usar Fortaleza em vez de UTC
 
     db.commit()
     db.refresh(db_payment)
@@ -184,7 +181,6 @@ def register_installment_payment(
     db_payment = InstallmentPayment(
         installment_id=installment_id,
         amount_paid=amount,
-        paid_at=get_now_fortaleza_naive(),  # Usar Fortaleza em vez de UTC
         status=InstallmentPaymentStatus.COMPLETED,
         company_id=current_user.company_id
     )
@@ -200,7 +196,6 @@ def register_installment_payment(
 
     if new_total_decimal >= amount_decimal_compare:
         installment.status = InstallmentStatus.PAID
-        installment.paid_at = get_now_fortaleza_naive()  # Usar Fortaleza em vez de UTC
 
     db.commit()
     db.refresh(db_payment)

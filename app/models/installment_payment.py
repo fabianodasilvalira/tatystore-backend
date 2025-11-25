@@ -2,12 +2,11 @@
 Modelo InstallmentPayment - Registro de Pagamentos Parciais de Parcelas
 Permite que um cliente pague uma parcela em múltiplas vezes (parcialmente)
 """
-from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, String
+from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, String, text
 from sqlalchemy.orm import relationship
 import enum
 
 from app.core.database import Base
-from app.core.datetime_utils import default_datetime_fortaleza
 
 
 class InstallmentPaymentStatus(str, enum.Enum):
@@ -39,9 +38,9 @@ class InstallmentPayment(Base):
     status = Column(Enum(InstallmentPaymentStatus), default=InstallmentPaymentStatus.PENDING)
     
     # Rastreamento
-    paid_at = Column(DateTime, default=default_datetime_fortaleza)  # Quando foi pago
-    created_at = Column(DateTime, default=default_datetime_fortaleza)
-    updated_at = Column(DateTime, default=default_datetime_fortaleza, onupdate=default_datetime_fortaleza)
+    paid_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
+    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"), onupdate=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
     
     # Relacionamentos
     installment = relationship("Installment", back_populates="payments")

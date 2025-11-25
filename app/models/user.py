@@ -2,11 +2,10 @@
 Modelo User - Usuários
 Cada usuário pertence a uma empresa e tem um perfil
 """
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, text
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
-from app.core.datetime_utils import default_datetime_fortaleza
 
 
 class User(Base):
@@ -25,8 +24,8 @@ class User(Base):
     
     is_active = Column(Boolean, default=True)
     last_login_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=default_datetime_fortaleza)
-    updated_at = Column(DateTime, default=default_datetime_fortaleza, onupdate=default_datetime_fortaleza)
+    created_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
+    updated_at = Column(DateTime, server_default=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"), onupdate=text("CURRENT_TIMESTAMP AT TIME ZONE 'America/Fortaleza'"))
     
     # Relacionamentos
     company = relationship("Company", back_populates="users")
