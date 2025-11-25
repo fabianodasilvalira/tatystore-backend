@@ -38,7 +38,7 @@ class Settings(BaseSettings):
 
     CRON_SECRET: str
     OVERDUE_JOB_HOUR: int
-    SCHEDULER_TIMEZONE: str
+    SCHEDULER_TIMEZONE: str = "America/Fortaleza"  # Padrão para Fortaleza - CE
 
     MAX_UPLOAD_SIZE: int
 

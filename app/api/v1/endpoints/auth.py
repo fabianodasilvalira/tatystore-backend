@@ -28,6 +28,7 @@ from app.schemas.user_schemas import (
 )
 from app.core.deps import get_current_user
 import uuid
+from app.core.datetime_utils import get_now_fortaleza_naive
 
 router = APIRouter()
 
@@ -120,7 +121,7 @@ def _perform_login(email: str, password: str, db: Session) -> TokenResponse:
             detail="Usuário desativado"
         )
 
-    user.last_login_at = datetime.utcnow()
+    user.last_login_at = get_now_fortaleza_naive()
 
     token_data = {
         "sub": str(user.id),  # Converter para string (padrão JWT)

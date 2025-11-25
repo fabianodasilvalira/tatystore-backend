@@ -1,11 +1,12 @@
 """
 Funções de segurança: hash de senha, criação e verificação de JWT
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from app.core.config import settings
+from app.core.datetime_utils import get_now_utc
 import hashlib
 
 # Contexto para hash de senha
@@ -60,14 +61,15 @@ def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta]
     if "sub" in to_encode and isinstance(to_encode["sub"], int):
         to_encode["sub"] = str(to_encode["sub"])
     
+    now_utc = get_now_utc()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = now_utc + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
+        expire = now_utc + timedelta(minutes=JWT_ACCESS_TOKEN_EXPIRE_MINUTES)
     
     to_encode.update({
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": now_utc,
         "type": "access",
         "jti": str(uuid.uuid4())  # ID único para revogação
     })
@@ -85,14 +87,15 @@ def create_refresh_token(data: Dict[str, Any], expires_delta: Optional[timedelta
     import uuid
     to_encode = data.copy()
     
+    now_utc = get_now_utc()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = now_utc + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(days=JWT_REFRESH_TOKEN_EXPIRE_DAYS)
+        expire = now_utc + timedelta(days=JWT_REFRESH_TOKEN_EXPIRE_DAYS)
     
     to_encode.update({
         "exp": expire,
-        "iat": datetime.utcnow(),
+        "iat": now_utc,
         "type": "refresh",
         "jti": str(uuid.uuid4())  # Adicionar jti também em refresh token
     })
