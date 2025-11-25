@@ -109,8 +109,15 @@ def create_installment_payment(
     )
     db.add(db_payment)
 
+    # CHANGE: Calcula novo total após adicionar pagamento, e persiste status PAID no banco se necessário
     new_total_paid = total_paid + amount
-    if new_total_paid >= float(installment.amount):
+    amount_float = float(installment.amount)
+
+    # Usar Decimal para comparação precisa
+    new_total_decimal = Decimal(str(new_total_paid)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    amount_decimal_compare = Decimal(str(amount_float)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    if new_total_decimal >= amount_decimal_compare:
         installment.status = InstallmentStatus.PAID
         installment.paid_at = datetime.utcnow()
 
@@ -182,8 +189,15 @@ def register_installment_payment(
     )
     db.add(db_payment)
 
+    # CHANGE: Calcula novo total após adicionar pagamento, e persiste status PAID no banco se necessário
     new_total_paid = total_paid + amount
-    if new_total_paid >= float(installment.amount):
+    amount_float = float(installment.amount)
+
+    # Usar Decimal para comparação precisa
+    new_total_decimal = Decimal(str(new_total_paid)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+    amount_decimal_compare = Decimal(str(amount_float)).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+    if new_total_decimal >= amount_decimal_compare:
         installment.status = InstallmentStatus.PAID
         installment.paid_at = datetime.utcnow()
 
@@ -253,7 +267,7 @@ def get_installment_detail(
     - Histórico completo de pagamentos
 
     CHANGE: Agora retorna remaining_amount corretamente arredondado.
-    Se a parcela está totalmente paga, remaining_amount = 0.0
+    Se a parcela está totalmente paga, remaining_amount = 0.0 e status = "paid"
     """
     installment = db.query(Installment).filter(
         Installment.id == installment_id
@@ -279,6 +293,11 @@ def get_installment_detail(
 
     payments_data = [InstallmentPaymentOut.model_validate(p).model_dump() for p in payments]
 
+    # CHANGE: Se remaining_amount é 0, o status deve ser "paid" independentemente do banco
+    response_status = installment.status.value
+    if remaining_amount == 0.0:
+        response_status = InstallmentStatus.PAID.value
+
     return InstallmentDetailOut(
         id=installment.id,
         sale_id=installment.sale_id,
@@ -287,7 +306,7 @@ def get_installment_detail(
         installment_number=installment.installment_number,
         amount=float(installment.amount),
         due_date=installment.due_date,
-        status=installment.status.value,
+        status=response_status,
         paid_at=installment.paid_at,
         created_at=installment.created_at,
         total_paid=total_paid,

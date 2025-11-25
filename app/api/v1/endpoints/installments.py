@@ -64,6 +64,11 @@ def _enrich_installment_with_balance(installment: Installment) -> dict:
     total_paid, remaining = _calculate_installment_balance(installment)
     data["total_paid"] = total_paid
     data["remaining_amount"] = remaining
+
+    # CHANGE: Se remaining_amount é 0, o status deve ser "paid" independentemente do banco
+    if remaining == 0.0:
+        data["status"] = InstallmentStatus.PAID.value
+
     data["payments"] = [
         {
             "id": p.id,
