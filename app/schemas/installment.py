@@ -17,6 +17,16 @@ class PaymentInInstallment(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class CustomerInInstallment(BaseModel):
+    """Schema simplificado de cliente para incluir nas parcelas"""
+    id: int
+    name: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class InstallmentOut(BaseModel):
     id: int
     sale_id: int
@@ -30,6 +40,7 @@ class InstallmentOut(BaseModel):
     created_at: datetime
     total_paid: float = 0.0
     remaining_amount: float = 0.0
+    customer: Optional[CustomerInInstallment] = None
     payments: List[PaymentInInstallment] = []
     payments_count: int = 0
     

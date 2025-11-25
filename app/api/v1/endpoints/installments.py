@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import or_
 from typing import List, Optional
 from datetime import datetime, date
 from decimal import Decimal, ROUND_HALF_UP
@@ -10,6 +11,7 @@ from app.core.messages import Messages
 from app.models.user import User
 from app.models.installment import Installment, InstallmentStatus
 from app.models.installment_payment import InstallmentPayment, InstallmentPaymentStatus
+from app.models.customer import Customer
 from app.schemas.installment import InstallmentOut
 from app.schemas.pagination import paginate
 
@@ -68,6 +70,16 @@ def _enrich_installment_with_balance(installment: Installment) -> dict:
     # CHANGE: Se remaining_amount é 0, o status deve ser "paid" independentemente do banco
     if remaining == 0.0:
         data["status"] = InstallmentStatus.PAID.value
+
+    if installment.customer:
+        data["customer"] = {
+            "id": installment.customer.id,
+            "name": installment.customer.name,
+            "email": installment.customer.email,
+            "phone": installment.customer.phone,
+        }
+    else:
+        data["customer"] = None
 
     data["payments"] = [
         {
@@ -202,6 +214,7 @@ def list_installments(
         limit: Optional[int] = None,
         customer_id: Optional[int] = None,
         status_filter: Optional[str] = None,
+        search: Optional[str] = None,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
@@ -213,9 +226,11 @@ def list_installments(
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
     - `customer_id`: Filtrar por cliente (opcional)
     - `status_filter`: Filtrar por status (opcional)
+    - `search`: Buscar por nome do cliente (opcional)
     """
     query = db.query(Installment).options(
-        joinedload(Installment.payments)
+        joinedload(Installment.payments),
+        joinedload(Installment.customer)
     ).filter(
         Installment.company_id == current_user.company_id
     )
@@ -229,6 +244,12 @@ def list_installments(
             query = query.filter(Installment.status == status_enum)
         except ValueError:
             raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
+
+    # CHANGE: Adicionado filtro de busca por nome do cliente
+    if search:
+        query = query.filter(
+            Customer.name.ilike(f"%{search}%")
+        )
 
     query = query.order_by(Installment.due_date.asc())
 
