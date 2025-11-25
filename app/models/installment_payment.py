@@ -4,10 +4,10 @@ Permite que um cliente pague uma parcela em múltiplas vezes (parcialmente)
 """
 from sqlalchemy import Column, Integer, Float, ForeignKey, DateTime, Enum, String
 from sqlalchemy.orm import relationship
+from datetime import datetime
 import enum
 
 from app.core.database import Base
-from app.core.datetime_utils import default_datetime_fortaleza
 
 
 class InstallmentPaymentStatus(str, enum.Enum):
@@ -39,9 +39,9 @@ class InstallmentPayment(Base):
     status = Column(Enum(InstallmentPaymentStatus), default=InstallmentPaymentStatus.PENDING)
     
     # Rastreamento
-    paid_at = Column(DateTime, default=default_datetime_fortaleza)  # Quando foi pago
-    created_at = Column(DateTime, default=default_datetime_fortaleza)
-    updated_at = Column(DateTime, default=default_datetime_fortaleza, onupdate=default_datetime_fortaleza)
+    paid_at = Column(DateTime, default=datetime.utcnow)  # Quando foi pago
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     
     # Relacionamentos
     installment = relationship("Installment", back_populates="payments")
