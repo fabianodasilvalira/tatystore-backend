@@ -26,6 +26,7 @@ router = APIRouter()
 @router.post("/", response_model=CompanyCreateResponse, status_code=status.HTTP_200_OK, summary="Criar nova empresa")
 def create_company(
     company_data: CompanyCreate,
+    current_user: User = Depends(require_role("super_admin")),
     db: Session = Depends(get_db)
 ):
     """
@@ -33,22 +34,7 @@ def create_company(
     
     Cria uma nova empresa e usuário gerente automaticamente.
     
-    **NOTA:** Este endpoint não requer autenticação pois é usado para cadastro inicial.
-    
-    **Fluxo:**
-    1. Valida CNPJ único
-    2. Gera slug único baseado no nome (ex: "Minha Loja" -> "minha-loja")
-    3. Cria a empresa no banco
-    4. Cria role "gerente" se não existir
-    5. Cria usuário gerente com email padrão: gerente@{slug}.local
-    6. Retorna URL de acesso: /empresa/{slug}
-    
-    **Retorna:**
-    - `id`: ID da empresa
-    - `slug`: URL amigável da empresa
-    - `access_url`: URL completa para clientes acessarem (/empresa/{slug})
-    - `admin_email`: Email do gerente (salve em local seguro)
-    - `admin_password`: Senha padrão do gerente: gerente@2025
+    **PERMISSÃO:** Apenas Super Admin (Administrador da Plataforma)
     """
     # Verificar CNPJ duplicado
     existing = db.query(Company).filter(Company.cnpj == company_data.cnpj).first()
@@ -124,7 +110,7 @@ def create_company(
 def list_companies(
     skip: int = 0,
     limit: Optional[int] = None,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_role("super_admin")),
     db: Session = Depends(get_db)
 ):
     """
@@ -132,15 +118,7 @@ def list_companies(
     
     Lista todas as empresas do sistema.
     
-    **PERMISSÃO:** Apenas Admin (Administrador do Sistema)
-    
-    **NOTA:** Admin pode apenas listar e cadastrar empresas, não pode ver dados detalhados.
-    
-    **Paginação:**
-    - `skip`: Pular N registros (padrão: 0)
-    - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
-    
-    **Resposta:** Dados paginados com metadados (total, página, total_pages, etc)
+    **PERMISSÃO:** Apenas Super Admin (Administrador da Plataforma)
     """
     query = db.query(Company)
     
@@ -172,13 +150,8 @@ def get_my_company(
 ):
     """
     **Obter Dados da Própria Empresa**
-    
-    Retorna informações da empresa do usuário autenticado.
-    
-    **PERMISSÃO:** Admin, Gerente e Vendedor
     """
     if current_user.company_id is None:
-        # Admin do sistema pode pegar primeira empresa ou retornar erro
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Admin do sistema não tem empresa associada. Use GET /{company_id} para acessar uma empresa específica."
@@ -203,12 +176,6 @@ def get_company(
 ):
     """
     **Obter Dados da Empresa**
-    
-    Retorna informações detalhadas da empresa.
-    
-    **PERMISSÃO:** 
-    - Admin (Administrador do Sistema): Acesso TOTAL a qualquer empresa
-    - Gerente e Vendedor: Apenas da própria empresa
     """
     company = db.query(Company).filter(Company.id == company_id).first()
     
@@ -218,10 +185,10 @@ def get_company(
             detail="Empresa não encontrada"
         )
     
-    user_role_name = current_user.role.name.lower() if current_user.role else ""
-    is_admin = "admin" in user_role_name or user_role_name == "administrador"
+    # Lógica de Permissão Corrigida
+    is_superuser = current_user.role.name == "Super Admin"
     
-    if not is_admin and current_user.company_id != company_id:
+    if not is_superuser and current_user.company_id != company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado: você só pode acessar dados da sua própria empresa"
@@ -239,12 +206,6 @@ def update_company(
 ):
     """
     **Atualizar Empresa**
-    
-    Atualiza informações da empresa.
-    
-    **PERMISSÃO:** 
-    - Admin (Administrador do Sistema): Pode atualizar QUALQUER empresa
-    - Gerente: Apenas a própria empresa
     """
     company = db.query(Company).filter(Company.id == company_id).first()
     
@@ -254,10 +215,10 @@ def update_company(
             detail="Empresa não encontrada"
         )
     
-    user_role_name = current_user.role.name
-    is_admin = user_role_name.lower() in ["admin"]
+    # Lógica de Permissão Corrigida
+    is_superuser = current_user.role.name == "Super Admin"
     
-    if not is_admin and current_user.company_id != company_id:
+    if not is_superuser and current_user.company_id != company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado: você só pode atualizar dados da sua própria empresa"
@@ -278,15 +239,11 @@ def update_company(
 @router.delete("/{company_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Desativar empresa")
 def delete_company(
     company_id: int,
-    current_user: User = Depends(require_role("admin")),
+    current_user: User = Depends(require_role("super_admin")),
     db: Session = Depends(get_db)
 ):
     """
     **Desativar Empresa**
-    
-    Desativa uma empresa (soft delete).
-    
-    **PERMISSÃO:** Apenas Admin (Administrador do Sistema)
     """
     company = db.query(Company).filter(Company.id == company_id).first()
     
@@ -312,20 +269,6 @@ async def upload_company_logo(
 ):
     """
     **Upload de Logo da Empresa**
-    
-    Faz upload do logo da empresa.
-    
-    **PERMISSÃO:** 
-    - Admin (Administrador do Sistema): Pode fazer upload em QUALQUER empresa
-    - Gerente: Apenas na própria empresa
-    
-    **Formatos Aceitos:** JPG, PNG, WEBP
-    
-    **Tamanho Máximo:** 5MB
-    
-    **Arquivo salvo em:** `/uploads/{company_slug}/company/logo.{ext}`
-    
-    **Retorna:** Dados completos da empresa com a URL do logo atualizada
     """
     # Buscar empresa
     company = db.query(Company).filter(Company.id == company_id).first()
@@ -336,11 +279,10 @@ async def upload_company_logo(
             detail="Empresa não encontrada"
         )
     
-    # Verificar isolamento
-    user_role_name = current_user.role.name
-    is_admin = user_role_name.lower() in ["admin"]
+    # Lógica de Permissão Corrigida
+    is_superuser = current_user.role.name == "Super Admin"
     
-    if not is_admin and current_user.company_id != company_id:
+    if not is_superuser and current_user.company_id != company_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Acesso negado: você só pode fazer upload do logo da sua própria empresa"
