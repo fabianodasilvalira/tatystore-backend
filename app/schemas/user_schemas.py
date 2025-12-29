@@ -14,7 +14,7 @@ class UserOut(BaseModel):
     id: int
     name: str
     email: EmailStr
-    company_id: int
+    company_id: Optional[int] = None
     role_id: Optional[int] = None
     is_active: bool = True
     last_login_at: Optional[datetime] = None
