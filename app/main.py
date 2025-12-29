@@ -12,7 +12,7 @@ import sys
 
 from app.core.config import settings
 from app.core.database import engine, Base, SessionLocal
-from app.core.seed import seed_data
+from app.core.seed import seed_data, ensure_platform_admin
 from app.api.v1 import api_router
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.jobs.overdue_job import mark_overdue_installments, get_overdue_job_config
@@ -54,6 +54,7 @@ def init_db():
         db = SessionLocal()
         try:
             seed_data(db)
+            ensure_platform_admin(db)  # Garantir admin do .env sempre
             print("✓ Dados do sistema inicializados com sucesso")
         finally:
             db.close()
