@@ -22,6 +22,70 @@ from app.core.datetime_utils import get_now_fortaleza_naive
 
 settings = get_settings()
 
+def ensure_platform_admin(db: Session):
+    """
+    Garante que o administrador da plataforma (definido no .env) exista.
+    Esta função roda sempre na inicialização, independente do seed.
+    """
+    try:
+        # Verificar se as variáveis de ambiente estão configuradas
+        if not settings.ADMIN_EMAIL or not settings.ADMIN_PASSWORD:
+            print("⚠️  ADMIN_EMAIL ou ADMIN_PASSWORD não configurados. Pulando criação de admin.")
+            return
+
+        print(f"🔧 Verificando Administrador da Plataforma ({settings.ADMIN_EMAIL})...")
+        
+        # 1. Buscar Role de Administrador
+        admin_role = db.query(Role).filter(Role.name == "Administrador").first()
+        if not admin_role:
+             # Fallback caso seed ainda não tenha rodado (improvável mas seguro)
+            print("⚠️  Role 'Administrador' não encontrada. Criando fallback...")
+            admin_role = Role(name="Administrador", description="Admin do Sistema")
+            db.add(admin_role)
+            db.flush()
+
+        # 2. Verificar/Criar Empresa Administrativa
+        admin_company = db.query(Company).filter(Company.slug == "tatystore-admin").first()
+        
+        if not admin_company:
+            print("🏢 Criando empresa administrativa do sistema...")
+            admin_company = Company(
+                name="TatyStore System",
+                slug="tatystore-admin",
+                cnpj="00000000000000",
+                email=settings.ADMIN_EMAIL,
+                phone="(00) 0000-0000",
+                address="System Cloud",
+                is_active=True
+            )
+            db.add(admin_company)
+            db.flush()
+        
+        # 3. Verificar/Criar Usuário Admin
+        admin_user = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
+        
+        if not admin_user:
+            print(f"👤 Criando usuário admin {settings.ADMIN_EMAIL}...")
+            admin_user = User(
+                name="Administrador Geral",
+                email=settings.ADMIN_EMAIL,
+                password_hash=hash_password(settings.ADMIN_PASSWORD),
+                company_id=admin_company.id,
+                role_id=admin_role.id,
+                is_active=True,
+                created_at=get_now_fortaleza_naive(),
+                updated_at=get_now_fortaleza_naive()
+            )
+            db.add(admin_user)
+            db.commit()
+            print("✅ Administrador da Plataforma criado com sucesso!")
+        else:
+            print("✓ Administrador da Plataforma já existe.")
+            
+    except Exception as e:
+        print(f"❌ Erro ao verificar admin da plataforma: {e}")
+        db.rollback()
+
 PERMISSIONS = [
     ("products.view", "Pode visualizar produtos"),
     ("products.create", "Pode cadastrar novos produtos"),
