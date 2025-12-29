@@ -47,14 +47,6 @@ def _build_user_response(user: User, company: Company) -> UserOut:
     role_name = user.role.name if user.role else None
     normalized_role = role_map.get(role_name, role_name.lower() if role_name else None)
     
-    return UserOut(
-        id=user.id,
-        name=user.name,
-        email=user.email,
-        company_id=user.company_id,
-        role_id=user.role_id,
-        last_login_at=user.last_login_at,
-        must_change_password=False,
     company_name = company.name if company else "Plataforma"
     company_slug = company.slug if company else None
     company_logo_url = company.logo_url if company else None
