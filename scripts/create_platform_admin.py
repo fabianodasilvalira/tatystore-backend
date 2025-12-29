@@ -15,6 +15,12 @@ from app.core.database import SessionLocal
 from app.models.user import User
 from app.models.company import Company
 from app.models.role import Role
+from app.models.sale import Sale
+from app.models.customer import Customer
+from app.models.product import Product
+from app.models.installment import Installment
+from app.models.category import Category
+from app.models.permission import Permission
 from app.core.security import hash_password
 from app.core.datetime_utils import get_now_fortaleza_naive
 
