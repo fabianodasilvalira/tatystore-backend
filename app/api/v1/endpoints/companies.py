@@ -107,20 +107,31 @@ def create_company(
 
 
 @router.get("/", summary="Listar todas as empresas")
+@router.get("/", summary="Listar todas as empresas")
 def list_companies(
     skip: int = 0,
     limit: Optional[int] = None,
-    current_user: User = Depends(require_role("super_admin")),
+    current_user: User = Depends(require_role("super_admin", "admin")),
     db: Session = Depends(get_db)
 ):
     """
     **Listar Todas as Empresas**
     
-    Lista todas as empresas do sistema.
+    Lista todas as empresas do sistema (para Super Admin).
+    Lista apenas a própria empresa (para Admin de Loja).
     
-    **PERMISSÃO:** Apenas Super Admin (Administrador da Plataforma)
+    **PERMISSÃO:** Super Admin e Admin
     """
     query = db.query(Company)
+    
+    # Se NÃO for Super Admin, filtrar apenas a própria empresa
+    if current_user.role.name != "Super Admin":
+        if current_user.company_id is None:
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Admin de loja sem empresa vinculada."
+            )
+        query = query.filter(Company.id == current_user.company_id)
     
     total = query.count()
     
