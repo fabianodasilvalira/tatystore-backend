@@ -55,10 +55,22 @@ def _build_user_response(user: User, company: Company) -> UserOut:
         role_id=user.role_id,
         last_login_at=user.last_login_at,
         must_change_password=False,
-        company_slug=company.slug,
+    company_name = company.name if company else "Plataforma"
+    company_slug = company.slug if company else None
+    company_logo_url = company.logo_url if company else None
+    
+    return UserOut(
+        id=user.id,
+        name=user.name,
+        email=user.email,
+        company_id=user.company_id,
+        role_id=user.role_id,
+        last_login_at=user.last_login_at,
+        must_change_password=False,
+        company_slug=company_slug,
         role=normalized_role,
-        company_name=company.name,
-        company_logo_url=company.logo_url
+        company_name=company_name,
+        company_logo_url=company_logo_url
     )
 
 
@@ -72,6 +84,7 @@ def _get_redirect_url(role_name: str) -> str:
     - Default: /dashboard
     """
     role_redirects = {
+        "Super Admin": "/companies",  # Super Admin vai para empresas
         "Administrador": "/companies",
         "admin": "/companies",
         "Gerente": "/dashboard",
@@ -103,16 +116,20 @@ def _perform_login(email: str, password: str, db: Session) -> TokenResponse:
             detail="Email ou senha incorretos"
         )
 
-    company = db.query(Company).filter(Company.id == user.company_id).first()
+    company = None
+    if user.company_id is not None:
+        company = db.query(Company).filter(Company.id == user.company_id).first()
 
-    if not company or not company.is_active:
-        db.add(login_attempt)
-        db.commit()
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Empresa inativa ou não encontrada"
-        )
-
+        if not company or not company.is_active:
+            db.add(login_attempt)
+            db.commit()
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Empresa inativa ou não encontrada"
+            )
+    
+    # Se company_id for None (Super Admin), company continua None e passamos direto
+    
     if not user.is_active:
         db.add(login_attempt)
         db.commit()
@@ -128,7 +145,7 @@ def _perform_login(email: str, password: str, db: Session) -> TokenResponse:
         "user_id": user.id,
         "email": user.email,
         "company_id": user.company_id,
-        "company_slug": company.slug,
+        "company_slug": company.slug if company else None,
         "role_id": user.role_id,
         "role": user.role.name
     }
