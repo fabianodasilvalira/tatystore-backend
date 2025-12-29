@@ -23,7 +23,8 @@ security = HTTPBearer(
 
 ROLE_MAPPING = {
     # Aliases em minúsculo -> Nomes completos no banco
-    "admin": ["Administrador", "admin", "Admin"],
+    "super_admin": ["Super Admin"],  # Alias exclusivo para rotas críticas
+    "admin": ["Super Admin", "Administrador", "admin", "Admin"], # Super Admin herda poderes de Admin
     "gerente": ["Gerente", "gerente", "Manager"],
     "vendedor": ["Vendedor", "vendedor", "Seller"],
     "usuario": ["usuario", "User"],
@@ -40,9 +41,8 @@ def get_current_user(
     - Token válido e não expirado
     - Token não está na blacklist
     - Usuário existe e está ativo
-    - Empresa está ativa
+    - Empresa está ativa (SE o usuário pertencer a uma)
     - company_id e role_id presentes no token
-    - Usuário pertence à empresa do token
     """
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -84,10 +84,11 @@ def get_current_user(
         except (ValueError, TypeError):
             raise credentials_exception
         
-        company_id: int = payload.get("company_id")
+        # company_id é Opcional para Super Admin
+        company_id: Optional[int] = payload.get("company_id")
         role_id: int = payload.get("role_id")
         
-        if user_id is None or company_id is None or role_id is None:
+        if user_id is None or role_id is None:
             raise credentials_exception
             
     except JWTError:
@@ -108,18 +109,26 @@ def get_current_user(
             detail="User inactive"
         )
     
-    # Verificar se empresa está ativa
-    if not user.company.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Company inactive"
-        )
-    
-    if user.company_id != company_id:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Not found"
-        )
+    # Lógica Condicional de Empresa (Alteração Solicitada)
+    # Se o usuário tem empresa vinculada, valida. Se for Super Admin (company_id=None), passa direto.
+    if user.company_id is not None:
+        # Usuário vinculado a empresa: valida se ela existe e está ativa
+        if not user.company or not user.company.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Company inactive or not found"
+            )
+        
+        # Valida match do token (segurança)
+        if company_id is not None and user.company_id != company_id:
+             raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Not found (Company mismatch)"
+            )
+    else:
+        # Usuário SEM empresa (Super Admin Geral)
+        # Não faz validações de empresa
+        pass
     
     return user
 
@@ -130,8 +139,6 @@ def require_role(*allowed_roles: str):
     Uso: current_user: User = Depends(require_role("admin", "gerente"))
     
     Aceita aliases em minúsculo: "admin", "gerente", "vendedor"
-    
-    Melhorado: agora faz busca case-insensitive contra ROLE_MAPPING
     """
     def role_checker(current_user: User = Depends(get_current_user)) -> User:
         user_role_name = current_user.role.name

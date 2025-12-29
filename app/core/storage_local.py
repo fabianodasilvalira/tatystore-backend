@@ -22,7 +22,7 @@ def save_company_file(company_slug: str, folder: str, filename: str, file_bytes:
     with open(fp, "wb") as f:
         f.write(file_bytes)
 
-    # URL completa (IMPORTANTE)
-    public_url = f"{settings.API_BASE_URL}/uploads/{company_slug}/{folder}/{safe}"
+    # URL relativa (Melhor para previnir erros de concatenação no frontend)
+    public_url = f"/uploads/{company_slug}/{folder}/{safe}"
 
     return public_url

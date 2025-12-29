@@ -17,7 +17,8 @@ class User(Base):
     password_hash = Column(String(200), nullable=False)
     
     # Relacionamento com empresa (multi-tenant)
-    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False)
+    # Pode ser nulo para Super Admin do Sistema
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=True)
     
     # Relacionamento com perfil
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=False)

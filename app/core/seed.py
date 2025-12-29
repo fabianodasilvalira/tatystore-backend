@@ -44,22 +44,8 @@ def ensure_platform_admin(db: Session):
             db.add(admin_role)
             db.flush()
 
-        # 2. Verificar/Criar Empresa Administrativa
-        admin_company = db.query(Company).filter(Company.slug == "tatystore-admin").first()
-        
-        if not admin_company:
-            print("🏢 Criando empresa administrativa do sistema...")
-            admin_company = Company(
-                name="TatyStore System",
-                slug="tatystore-admin",
-                cnpj="00000000000000",
-                email=settings.ADMIN_EMAIL,
-                phone="(00) 0000-0000",
-                address="System Cloud",
-                is_active=True
-            )
-            db.add(admin_company)
-            db.flush()
+        # 2. (REMOVIDO) Verificar/Criar Empresa Administrativa
+        # Conforme solicitado, o Admin Geral não terá empresa vinculada.
         
         # 3. Verificar/Criar Usuário Admin
         admin_user = db.query(User).filter(User.email == settings.ADMIN_EMAIL).first()
@@ -70,7 +56,7 @@ def ensure_platform_admin(db: Session):
                 name="Administrador Geral",
                 email=settings.ADMIN_EMAIL,
                 password_hash=hash_password(settings.ADMIN_PASSWORD),
-                company_id=admin_company.id,
+                company_id=None,  # Admin Geral não tem empresa
                 role_id=admin_role.id,
                 is_active=True,
                 created_at=get_now_fortaleza_naive(),
