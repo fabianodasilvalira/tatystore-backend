@@ -35,12 +35,12 @@ def ensure_platform_admin(db: Session):
 
         print(f"🔧 Verificando Administrador da Plataforma ({settings.ADMIN_EMAIL})...")
         
-        # 1. Buscar Role de Administrador
-        admin_role = db.query(Role).filter(Role.name == "Administrador").first()
+        # 1. Buscar Role de Super Admin
+        admin_role = db.query(Role).filter(Role.name == "Super Admin").first()
         if not admin_role:
-             # Fallback caso seed ainda não tenha rodado (improvável mas seguro)
-            print("⚠️  Role 'Administrador' não encontrada. Criando fallback...")
-            admin_role = Role(name="Administrador", description="Admin do Sistema")
+            # Tentar buscar "Administrador" apenas para migração ou fallback, mas o ideal é criar Super Admin
+            print("⚠️  Role 'Super Admin' não encontrada. Criando...")
+            admin_role = Role(name="Super Admin", description="Super Administrador da Plataforma")
             db.add(admin_role)
             db.flush()
 
@@ -80,7 +80,12 @@ def ensure_platform_admin(db: Session):
             db.commit()
             print("✅ Administrador da Plataforma criado com sucesso!")
         else:
-            print("✓ Administrador da Plataforma já existe.")
+            # Atualizar role se necessário
+            if admin_user.role_id != admin_role.id:
+                print("🔄 Atualizando role do admin para Super Admin...")
+                admin_user.role_id = admin_role.id
+                db.commit()
+            print("✓ Administrador da Plataforma verificado.")
             
     except Exception as e:
         print(f"❌ Erro ao verificar admin da plataforma: {e}")
@@ -97,10 +102,10 @@ PERMISSIONS = [
     ("sales.create", "Pode registrar vendas"),
     ("sales.cancel", "Pode cancelar vendas"),
     ("reports.view", "Pode visualizar relatórios"),
-    ("companies.create", "Pode criar novas empresas"),  # New permission
+    ("companies.create", "Pode criar novas empresas"),  # Permissão exclusiva do Super Admin
 ]
 
-ROLES = ["Administrador", "Gerente", "Vendedor"]
+ROLES = ["Super Admin", "Administrador", "Gerente", "Vendedor"]
 
 
 def seed_data(db: Session):
@@ -108,7 +113,7 @@ def seed_data(db: Session):
     Synchronous seed function for system initialization
     
     Cria dados INICIAIS apenas para Taty Perfumaria:
-    - Permissions and roles (Admin, Gerente, Vendedor)
+    - Permissions and roles (Super Admin, Admin, Gerente, Vendedor)
     - Empresa Principal: Taty Perfumaria
     - 4 usuários (Admin + Gerente + Vendedor + 1 inativo)
     - CATEGORIAS: 6 categorias
@@ -154,8 +159,13 @@ def seed_data(db: Session):
         db.flush()
         
         for rname, codes in {
-            "Administrador": [p.code for p in per_objs],  # Todas as permissões
-            "Gerente": [  # Todas as permissões exceto criar empresa (que é Admin)
+            "Super Admin": [p.code for p in per_objs], # Acesso TOTAL
+            "Administrador": [ # Administrador da Empresa (Sem companies.create)
+                "products.view", "products.create", "products.update", "products.update_stock",
+                "customers.view", "customers.create", "customers.update",
+                "sales.create", "sales.cancel", "reports.view"
+            ], 
+            "Gerente": [
                 "products.view", "products.create", "products.update", "products.update_stock",
                 "customers.view", "customers.create", "customers.update",
                 "sales.create", "sales.cancel", "reports.view"
