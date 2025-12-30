@@ -87,3 +87,10 @@ class UserUpdate(BaseModel):
     password: Optional[str] = None
     is_active: Optional[bool] = None
     role_id: Optional[int] = None
+
+class UserProfileUpdate(BaseModel):
+    """Schema para atualização de perfil próprio (sem senha e role)"""
+    model_config = ConfigDict(from_attributes=True)
+    
+    name: Optional[str] = None
+    email: Optional[EmailStr] = None

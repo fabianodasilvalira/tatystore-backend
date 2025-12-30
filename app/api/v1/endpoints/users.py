@@ -13,11 +13,83 @@ from app.core.deps import get_current_user, require_role
 from app.core.security import hash_password, verify_password, validate_password_strength
 from app.models.user import User
 from app.models.role import Role
-from app.schemas.user_schemas import UserCreate, UserUpdate, UserResponse
+from app.schemas.user_schemas import UserCreate, UserUpdate, UserResponse, UserProfileUpdate
 from app.schemas.pagination import paginate
 from app.core.datetime_utils import get_now_fortaleza_naive
 
 router = APIRouter()
+
+
+@router.get("/me", response_model=UserResponse, summary="Obter meu perfil")
+async def get_my_profile(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    **Obter Meu Perfil**
+    
+    Retorna os dados do usuário autenticado.
+    """
+    return UserResponse(
+        id=current_user.id,
+        name=current_user.name,
+        email=current_user.email,
+        company_id=current_user.company_id,
+        role_id=current_user.role_id,
+        is_active=current_user.is_active,
+        last_login_at=current_user.last_login_at,
+        must_change_password=False,
+        company_slug=current_user.company.slug if current_user.company else None,
+        role=current_user.role.name if current_user.role else None
+    )
+
+
+@router.put("/me", response_model=UserResponse, summary="Atualizar meu perfil")
+async def update_my_profile(
+    user_data: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    **Atualizar Meu Perfil**
+    
+    Permite que o usuário atualize seus próprios dados (nome e email).
+    Para alterar senha, use o endpoint /auth/change-password
+    """
+    # Atualizar apenas campos fornecidos
+    update_data = user_data.model_dump(exclude_unset=True)
+    
+    # Verificar se email já existe (se estiver sendo alterado)
+    if "email" in update_data and update_data["email"] != current_user.email:
+        existing = db.query(User).filter(
+            func.lower(User.email) == update_data["email"].lower(),
+            User.id != current_user.id
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email já cadastrado"
+            )
+    
+    for field, value in update_data.items():
+        setattr(current_user, field, value)
+    
+    current_user.updated_at = get_now_fortaleza_naive()
+    db.commit()
+    db.refresh(current_user)
+    
+    return UserResponse(
+        id=current_user.id,
+        name=current_user.name,
+        email=current_user.email,
+        company_id=current_user.company_id,
+        role_id=current_user.role_id,
+        is_active=current_user.is_active,
+        last_login_at=current_user.last_login_at,
+        must_change_password=False,
+        company_slug=current_user.company.slug if current_user.company else None,
+        role=current_user.role.name if current_user.role else None
+    )
 
 
 @router.post("/", response_model=UserResponse, status_code=status.HTTP_201_CREATED, summary="Criar novo usuário")
@@ -204,8 +276,9 @@ async def update_user(
             detail="Usuário não encontrado"
         )
     
-    # Verificar isolamento
-    if user.company_id != current_user.company_id:
+    # Verificar isolamento (permitir Super Admin editar qualquer usuário)
+    is_super_admin = current_user.company_id is None
+    if not is_super_admin and user.company_id != current_user.company_id:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Recurso não encontrado"
