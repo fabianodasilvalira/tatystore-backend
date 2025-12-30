@@ -110,6 +110,18 @@ async def setup_scheduler():
 async def lifespan(app: FastAPI):
     try:
         app.scheduler = await setup_scheduler()
+        
+        # LOGS DE DIAGNÓSTICO DE ROTAS (DEBUGGING PRODUCTION)
+        logger.info("="*50)
+        logger.info("🚀 DIAGNÓSTICO DE ROTAS INICIADO 🚀")
+        logger.info(f"Versão da API: {settings.VERSION}")
+        logger.info("Rotas Registradas:")
+        for route in app.routes:
+            if hasattr(route, "methods"):
+                methods = ", ".join(route.methods)
+                logger.info(f"📍 Rota: {methods} {route.path}")
+        logger.info("="*50)
+
         logger.info("Aplicação iniciada com sucesso")
     except Exception as e:
         logger.error(f"Erro na startup: {e}")
