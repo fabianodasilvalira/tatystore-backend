@@ -75,6 +75,8 @@ async def import_products(
     current_user: User = Depends(require_role("admin", "gerente")),
     db: Session = Depends(get_db)
 ):
+    print(f"DEBUG: Recebendo requisição de importação de arquivo: {file.filename}")
+    print(f"DEBUG: Usuário solicitante: {current_user.email} (Empresa: {current_user.company_id})")
     """
     **Importar Produtos em Massa via CSV**
     
@@ -263,10 +265,11 @@ async def import_products(
 from .template_helper import generate_default_template
 
 @router.get("/import/template", response_model=ImportTemplateResponse, summary="Download template CSV para importação")
-def download_template(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
+    print("DEBUG: Iniciando download de template de importação")
+    print(f"DEBUG: Usuário solicitante: {current_user.email} (Empresa: {current_user.company_id})")
     """
     Baixa um modelo de arquivo CSV para importação de produtos.
     """
