@@ -1,0 +1,229 @@
+# ============================================
+# DOCKER COMPOSE - TATYSTORE FRONTEND
+# ============================================
+# Este arquivo configura o serviço de produção para o Dokploy
+# Versão: 3.8 (compatível com Docker Compose moderno)
+# ============================================
+
+version: '3.8'
+
+services:
+  # ============================================
+  # SERVIÇO: TATYSTORE FRONTEND
+  # ============================================
+  # Este é o serviço principal que roda em produção
+  tatystore_frontend:
+
+    # ------------------------------------------
+    # CONFIGURAÇÃO DE BUILD
+    # ------------------------------------------
+    build:
+      # Contexto: diretório atual (onde está o código)
+      context: .
+
+      # Arquivo Dockerfile a ser usado
+      dockerfile: Dockerfile
+
+      # Target: qual estágio do multi-stage build usar
+      # "production" = estágio final com Nginx (não inclui node_modules)
+      target: production
+
+      # Labels do build (metadados da imagem)
+      labels:
+        - "com.tatystore.component=frontend"
+        - "com.tatystore.environment=production"
+        - "com.tatystore.version=1.0.0"
+        - "com.tatystore.description=TatyStore Frontend - React + Vite + Nginx"
+
+    # ------------------------------------------
+    # NOME DO CONTAINER
+    # ------------------------------------------
+    # Nome descritivo para facilitar identificação
+    # Aparece em: docker ps, Dokploy, logs, etc.
+    container_name: tatystore_frontend
+
+    # ------------------------------------------
+    # LABELS DO CONTAINER
+    # ------------------------------------------
+    # Metadados para identificação e organização
+    # Útil para filtrar containers: docker ps --filter "label=com.tatystore.component=frontend"
+    labels:
+      - "com.tatystore.project=tatystore"
+      - "com.tatystore.component=frontend"
+      - "com.tatystore.environment=production"
+      - "com.tatystore.version=1.0.0"
+      - "com.tatystore.tech-stack=react,vite,nginx,typescript"
+      - "com.tatystore.description=TatyStore Frontend - Interface do usuário"
+
+    # ------------------------------------------
+    # MAPEAMENTO DE PORTAS
+    # ------------------------------------------
+    # Formato: "PORTA_HOST:PORTA_CONTAINER"
+    # ${PORT:-80} = usa variável PORT do .env, ou 80 se não definida
+    # Dokploy gerencia automaticamente o proxy reverso
+    ports:
+      - "${PORT:-80}:80"
+
+    # ------------------------------------------
+    # VARIÁVEIS DE AMBIENTE
+    # ------------------------------------------
+    # Estas variáveis são injetadas no container em tempo de execução
+    environment:
+      # Ambiente de execução (production, development, etc)
+      - NODE_ENV=production
+
+      # URL do backend (já está rodando em produção)
+      # ${VITE_API_URL:-https://tatystore.cloud} = usa .env ou padrão
+      # IMPORTANTE: Configure no Dokploy se precisar de URL diferente
+      - VITE_API_URL=${VITE_API_URL:-https://tatystore.cloud}
+
+    # ------------------------------------------
+    # POLÍTICA DE RESTART
+    # ------------------------------------------
+    # unless-stopped = reinicia automaticamente, exceto se parado manualmente
+    # Garante que o serviço volte após reinicialização do servidor
+    restart: unless-stopped
+
+    # ------------------------------------------
+    # HEALTH CHECK
+    # ------------------------------------------
+    # Verifica se o container está saudável
+    healthcheck:
+      # Comando para testar: curl na raiz do site
+      test: [ "CMD", "curl", "-f", "http://localhost/" ]
+
+      # Intervalo entre verificações
+      interval: 30s
+
+      # Tempo máximo de espera por resposta
+      timeout: 3s
+
+      # Número de falhas antes de marcar como unhealthy
+      retries: 3
+
+      # Tempo de espera antes da primeira verificação
+      # Dá tempo para o Nginx inicializar
+      start_period: 5s
+
+    # ------------------------------------------
+    # REDE
+    # ------------------------------------------
+    # Conecta o container à rede customizada
+    # Permite comunicação entre containers se necessário
+    networks:
+      - tatystore-network
+
+    # ------------------------------------------
+    # LIMITES DE RECURSOS
+    # ------------------------------------------
+    # Previne que o container use recursos excessivos do servidor
+    deploy:
+      resources:
+        # LIMITES MÁXIMOS
+        limits:
+          # Máximo de 1 CPU (100% de 1 core)
+          # Ajuste conforme o plano da Hostinger
+          cpus: '1'
+
+          # Máximo de 512MB de RAM
+          # Suficiente para Nginx servir arquivos estáticos
+          memory: 512M
+
+        # RESERVAS MÍNIMAS
+        reservations:
+          # Mínimo de 0.25 CPU (25% de 1 core)
+          cpus: '0.25'
+
+          # Mínimo de 128MB de RAM
+          memory: 128M
+
+    # ------------------------------------------
+    # SEGURANÇA ADICIONAL
+    # ------------------------------------------
+    security_opt:
+      # Impede que processos ganhem novos privilégios
+      # Proteção contra escalação de privilégios
+      - no-new-privileges:true
+
+    # ------------------------------------------
+    # FILESYSTEM
+    # ------------------------------------------
+    # read_only: false permite escrita em diretórios específicos
+    # Necessário para logs e cache do Nginx
+    read_only: false
+
+    # ------------------------------------------
+    # TMPFS (FILESYSTEM TEMPORÁRIO EM MEMÓRIA)
+    # ------------------------------------------
+    # Diretórios temporários montados em RAM (mais rápido e seguro)
+    # Dados são perdidos quando o container reinicia (comportamento esperado)
+    # NOTA: /var/cache/nginx e /var/run NÃO usam tmpfs pois conflitam com o Nginx
+    tmpfs:
+      # Diretório temporário do sistema
+      - /tmp
+
+# ============================================
+# REDES
+# ============================================
+# Define redes customizadas para os containers
+networks:
+  tatystore-network:
+    # Driver bridge: rede isolada para os containers
+    # Permite comunicação entre containers na mesma rede
+    driver: bridge
+
+# ============================================
+# RESUMO DO QUE ESTE ARQUIVO FAZ:
+# ============================================
+# 1. Define o serviço de produção (tatystore_frontend)
+# 2. Configura build usando Dockerfile multi-stage
+# 3. Mapeia porta 80 do container para o host
+# 4. Injeta variáveis de ambiente (NODE_ENV, VITE_API_URL)
+# 5. Configura restart automático
+# 6. Adiciona health check para monitoramento
+# 7. Define limites de CPU e memória
+# 8. Aplica configurações de segurança
+# 9. Usa tmpfs para diretórios temporários
+# 10. Cria rede isolada para o container
+# 11. Adiciona labels para fácil identificação
+# ============================================
+
+# ============================================
+# COMO USAR:
+# ============================================
+# Build:
+#   docker-compose build tatystore_frontend
+#
+# Iniciar:
+#   docker-compose up tatystore_frontend
+#
+# Iniciar em background:
+#   docker-compose up -d tatystore_frontend
+#
+# Ver logs:
+#   docker-compose logs -f tatystore_frontend
+#
+# Parar:
+#   docker-compose down
+#
+# Rebuild completo:
+#   docker-compose build --no-cache tatystore_frontend
+#
+# Filtrar por labels:
+#   docker ps --filter "label=com.tatystore.component=frontend"
+#   docker images --filter "label=com.tatystore.component=frontend"
+# ============================================
+
+# ============================================
+# VARIÁVEIS DE AMBIENTE NECESSÁRIAS:
+# ============================================
+# Configure estas variáveis no painel do Dokploy:
+#
+# OBRIGATÓRIAS:
+#   GEMINI_API_KEY=sua_chave_api_aqui
+#
+# OPCIONAIS (já têm valores padrão):
+#   VITE_API_URL=https://tatystore.cloud
+#   NODE_ENV=production
+#   PORT=80
+# ============================================

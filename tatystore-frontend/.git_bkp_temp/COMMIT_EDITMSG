@@ -1,0 +1,6 @@
+fix: Configurar Tailwind para usar CSS variables dinâmicas
+
+- Substituir cores hardcoded por var(--color-primary-*)
+- Permitir mudança de tema em tempo real
+- Manter fallbacks para compatibilidade
+- Corrigir problema de tema não mudar em Configurações

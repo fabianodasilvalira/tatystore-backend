@@ -1,0 +1,3 @@
+nome,marca,categoria,descricao,preco_custo,preco_venda,estoque,estoque_minimo,sku,codigo_barras,ativo,em_promocao,preco_promocional
+Produto Browser 01,Marca Teste,Categoria Teste Browser,Produto importado via teste automatizado,10.00,20.00,100,5,BR-TEST-001,789000000001,false,false,
+Produto Browser 02,Marca Teste,Categoria Teste Browser,Produto com promoção importado,50.00,100.00,50,2,BR-TEST-002,789000000002,true,true,89.90

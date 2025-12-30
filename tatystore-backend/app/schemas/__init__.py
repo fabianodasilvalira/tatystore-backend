@@ -1,0 +1,3 @@
+"""
+Módulo Schemas - Validações Pydantic
+"""

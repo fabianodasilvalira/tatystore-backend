@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom Body Background to match legacy CDN style */
+body {
+    @apply bg-gray-100;
+}

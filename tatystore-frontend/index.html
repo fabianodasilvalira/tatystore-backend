@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TatyStore</title>
+    <title>TatyStore</title>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
+    <script type="importmap">
+{
+  "imports": {
+    "react": "https://aistudiocdn.com/react@^19.2.0",
+    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
+    "react/": "https://aistudiocdn.com/react@^19.2.0/",
+    "recharts": "https://aistudiocdn.com/recharts@^3.3.0",
+    "react-router-dom": "https://aistudiocdn.com/react-router-dom@^6.25.1"
+  }
+}
+</script>
+    <style>
+        @media print {
+            body {
+                background-color: white !important;
+            }
+
+            /* Esconde elementos não essenciais */
+            aside,
+            header,
+            .print-hidden {
+                display: none !important;
+            }
+
+            /* Garante que o conteúdo principal ocupe todo o espaço */
+            main {
+                padding: 0 !important;
+                margin: 0 !important;
+                overflow: visible !important;
+            }
+
+            /* Reseta os estilos do container do relatório */
+            .printable-content>div {
+                box-shadow: none !important;
+                border: none !important;
+                padding: 0 !important;
+            }
+
+            /* Força fundo branco e texto preto para legibilidade */
+            .printable-content,
+            .printable-content * {
+                background-color: white !important;
+                color: black !important;
+                border-color: #ccc !important;
+            }
+
+            .recharts-wrapper text {
+                fill: black !important;
+            }
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100">
+    <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
+</body>
+
+</html>
