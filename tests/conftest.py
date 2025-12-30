@@ -57,6 +57,13 @@ def client(db):
     Fixed TestClient initialization - pass app as positional argument, not keyword
     """
     print("[v0] Setting up test client...")
+    print("[v0] Registered Routes:")
+    for route in app.routes:
+        if hasattr(route, "methods"):
+            print(f"[v0] Route: {route.path} {route.methods}")
+        else:
+            print(f"[v0] Route: {route.path} (Mount/Other)")
+    
     def override_get_db():
         try:
             yield db
@@ -529,3 +536,44 @@ def get_auth_headers(token: str) -> dict:
     Corrected helper to return proper Authorization header with Bearer token
     """
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture(scope="function")
+def test_category(db, test_company1):
+    """
+    Cria categoria de teste
+    """
+    print("[v0] Creating test category...")
+    from app.models.category import Category
+    category = Category(
+        name="Categoria Teste",
+        description="Descrição da categoria teste",
+        company_id=test_company1.id,
+        is_active=True
+    )
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    print(f"[v0] Category created with id={category.id}")
+    return category
+
+
+@pytest.fixture(scope="function")
+def test_category_company2(db, test_company2):
+    """
+    Cria categoria da empresa 2
+    """
+    print("[v0] Creating test category for company 2...")
+    from app.models.category import Category
+    category = Category(
+        name="Categoria Empresa 2",
+        description="Descrição da categoria empresa 2",
+        company_id=test_company2.id,
+        is_active=True
+    )
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    print(f"[v0] Category2 created with id={category.id}")
+    return category
+

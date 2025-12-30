@@ -9,6 +9,7 @@ from app.api.v1.endpoints import (
     companies,
     users,
     products,
+    products_import,
     customers,
     sales,
     installments,
@@ -26,6 +27,7 @@ api_router.include_router(auth.router, prefix="/auth", tags=["Autenticação"])
 api_router.include_router(public.router, prefix="/public", tags=["Público"])
 api_router.include_router(companies.router, prefix="/companies", tags=["Empresas"])
 api_router.include_router(users.router, prefix="/users", tags=["Usuários"])
+api_router.include_router(products_import.router, prefix="/products", tags=["Produtos - Importação"])
 api_router.include_router(products.router, prefix="/products", tags=["Produtos"])
 api_router.include_router(categories.router, prefix="/categories", tags=["Categorias"])
 api_router.include_router(customers.router, prefix="/customers", tags=["Clientes"])

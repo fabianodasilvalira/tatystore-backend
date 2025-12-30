@@ -14,7 +14,8 @@ from . import (
     pix,
     public,
     cron,
-    categories
+    categories,
+    products_import
 )
 
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "public",
     "cron",
     "categories",
+    "products_import",
 ]
