@@ -19,9 +19,21 @@ from app.jobs.overdue_job import mark_overdue_installments, get_overdue_job_conf
 from fastapi.openapi.utils import get_openapi
 
 
+import logging
+from pythonjsonlogger import jsonlogger
+
+# Configuração de Logs Estruturados (JSON)
+logger = logging.getLogger()
+logHandler = logging.StreamHandler(sys.stdout)
+formatter = jsonlogger.JsonFormatter('%(asctime)s %(levelname)s %(name)s %(message)s')
+logHandler.setFormatter(formatter)
+logger.addHandler(logHandler)
+logger.setLevel(logging.INFO)
+
+
 def init_db():
     try:
-        print("🔄 Executando migrações do banco de dados...")
+        logger.info("Executando migrações do banco de dados...")
 
         result = subprocess.run(
             [sys.executable, "-m", "alembic", "upgrade", "head"],
@@ -35,32 +47,32 @@ def init_db():
             stdout = result.stdout.strip()
 
             if "already at head" not in stderr and "target database is not up to date" not in stderr and result.returncode == 0:
-                print("✓ Migrações já estão atualizadas")
+                logger.info("Migrações já estão atualizadas")
             elif result.returncode == 0 and ("OK" in stdout or "success" in stdout.lower()):
-                print("✓ Migrações executadas com sucesso")
+                logger.info("Migrações executadas com sucesso")
             else:
-                print(f"⚠️  Aviso nas migrações: {stderr or stdout}")
-                print("🔄 Criando tabelas diretamente com SQLAlchemy (fallback)...")
+                logger.warning(f"Aviso nas migrações: {stderr or stdout}")
+                logger.info("Criando tabelas diretamente com SQLAlchemy (fallback)...")
                 try:
                     Base.metadata.create_all(bind=engine)
-                    print("✓ Tabelas criadas com sucesso (fallback)")
+                    logger.info("Tabelas criadas com sucesso (fallback)")
                 except Exception as fallback_error:
-                    print(f"✗ Erro no fallback: {fallback_error}")
+                    logger.error(f"Erro no fallback: {fallback_error}")
                     raise
         else:
-            print("✓ Migrações executadas com sucesso")
+            logger.info("Migrações executadas com sucesso")
 
-        print("🌱 Inicializando dados do sistema...")
+        logger.info("Inicializando dados do sistema...")
         db = SessionLocal()
         try:
             seed_data(db)
             ensure_platform_admin(db)  # Garantir admin do .env sempre
-            print("✓ Dados do sistema inicializados com sucesso")
+            logger.info("Dados do sistema inicializados com sucesso")
         finally:
             db.close()
 
     except Exception as e:
-        print(f"✗ Erro ao inicializar banco: {e}")
+        logger.error(f"Erro ao inicializar banco: {e}")
         import traceback
         traceback.print_exc()
         raise
@@ -87,10 +99,10 @@ async def setup_scheduler():
         )
 
         scheduler.start()
-        print("✓ Scheduler iniciado com sucesso")
+        logger.info("Scheduler iniciado com sucesso")
         return scheduler
     except Exception as e:
-        print(f"✗ Erro ao iniciar scheduler: {e}")
+        logger.error(f"Erro ao iniciar scheduler: {e}")
         return None
 
 
@@ -98,16 +110,16 @@ async def setup_scheduler():
 async def lifespan(app: FastAPI):
     try:
         app.scheduler = await setup_scheduler()
-        print("✓ Aplicação iniciada com sucesso")
+        logger.info("Aplicação iniciada com sucesso")
     except Exception as e:
-        print(f"✗ Erro na startup: {e}")
+        logger.error(f"Erro na startup: {e}")
     yield
     if hasattr(app, 'scheduler') and app.scheduler:
         try:
             app.scheduler.shutdown()
-            print("✓ Scheduler encerrado")
+            logger.info("Scheduler encerrado")
         except Exception as e:
-            print(f"✗ Erro ao encerrar scheduler: {e}")
+            logger.error(f"Erro ao encerrar scheduler: {e}")
 
 
 app = FastAPI(
@@ -130,7 +142,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-print(f"✓ CORS configurado para: {settings.BACKEND_CORS_ORIGINS}")
+logger.info(f"CORS configurado para: {settings.BACKEND_CORS_ORIGINS}")
 
 # Servir uploads
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
