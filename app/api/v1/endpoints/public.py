@@ -334,3 +334,18 @@ def get_test_credentials(db: Session = Depends(get_db)):
             }
         }
     }
+
+@router.get("/version", summary="Verificar versão da API")
+def get_api_version():
+    """
+    **Verificar Versão**
+    
+    Retorna o timestamp da versão atual para validar deploy.
+    """
+    from app.core.datetime_utils import get_now_fortaleza_naive
+    return {
+        "version": "1.0.1",
+        "timestamp": get_now_fortaleza_naive(),
+        "environment": "production",
+        "last_update": "Fix Routing & Import"
+    }
