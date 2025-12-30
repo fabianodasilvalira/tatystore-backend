@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     )
 
     PROJECT_NAME: str
-    VERSION: str
+    VERSION: str = "1.1.0-FIX-ROUTING"
     DEBUG: bool = False
 
     API_BASE_URL: str
