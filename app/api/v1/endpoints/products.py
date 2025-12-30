@@ -316,6 +316,7 @@ def list_products(
         skip: int = 0,
         limit: Optional[int] = None,
         active_only: bool = False,
+        show_inactive: bool = False,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
@@ -328,6 +329,7 @@ def list_products(
 
     **Parâmetros:**
     - `active_only`: Se True, retorna apenas produtos ativos (padrão: False)
+    - `show_inactive`: Se True, retorna apenas produtos inativos (padrão: False)
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
 
@@ -337,8 +339,14 @@ def list_products(
     """
     query = db.query(Product).filter(Product.company_id == current_user.company_id)
 
-    if active_only:
+    # Filtro de produtos ativos/inativos
+    if show_inactive:
+        # Mostrar apenas produtos inativos
+        query = query.filter(Product.is_active == False)
+    elif active_only:
+        # Mostrar apenas produtos ativos
         query = query.filter(Product.is_active == True)
+    # Se nenhum dos dois, mostra todos (ativos e inativos)
 
     total = query.count()
 

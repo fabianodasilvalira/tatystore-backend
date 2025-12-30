@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from typing import List, Dict, Any
 import csv
 import io
+import os
 from datetime import datetime
 
 from app.core.database import get_db
@@ -16,7 +17,15 @@ from app.models.product import Product
 from app.models.category import Category
 from app.api.v1.endpoints.products import generate_sku
 
+from pydantic import BaseModel
+
 router = APIRouter()
+
+class ImportTemplateResponse(BaseModel):
+    filename: str
+    content: str
+    categorias_disponiveis: List[str]
+    instrucoes: Dict[str, Any]
 
 
 def parse_bool(value: str) -> bool:
@@ -251,17 +260,15 @@ async def import_products(
     return results
 
 
-@router.get("/import/template", summary="Download template CSV para importação")
-async def download_template(
-    current_user: User = Depends(require_role("admin", "gerente")),
+from .template_helper import generate_default_template
+
+@router.get("/import/template", response_model=ImportTemplateResponse, summary="Download template CSV para importação")
+def download_template(
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
     """
-    **Download Template CSV**
-    
-    Retorna um template CSV com exemplos para facilitar a importação.
-    
-    **Requer:** Admin ou Gerente
+    Baixa um modelo de arquivo CSV para importação de produtos.
     """
     
     # Buscar categorias da empresa para incluir no exemplo
@@ -272,14 +279,32 @@ async def download_template(
     
     category_examples = [cat.name for cat in categories] if categories else ["Maquiagem", "Perfumaria", "Cuidados"]
     
-    # Criar CSV de exemplo
-    csv_content = "nome,marca,categoria,descricao,preco_custo,preco_venda,estoque,estoque_minimo,sku,codigo_barras,ativo,em_promocao,preco_promocional\n"
-    csv_content += f"Batom Natura 001,Natura,{category_examples[0]},Batom vermelho intenso,15.50,35.90,0,5,NAT-BAT-001,7891234567890,false,false,\n"
-    csv_content += f"Perfume Boticário XYZ,Boticário,{category_examples[1] if len(category_examples) > 1 else category_examples[0]},Perfume masculino 100ml,45.00,120.00,0,3,BOT-PER-001,7891234567891,false,false,\n"
-    csv_content += f"Creme Eudora ABC,Eudora,{category_examples[2] if len(category_examples) > 2 else category_examples[0]},Creme hidratante facial,25.00,65.00,0,10,EUD-CRE-001,7891234567892,false,true,49.90\n"
+    # Tentar ler o arquivo real gerado se existir (caminho dentro do container)
+    # Assumindo que o arquivo foi copiado para /app/app/produtos_reais.csv durante o build
+    real_csv_path = os.path.join(os.path.dirname(__file__), "../../produtos_reais.csv")
     
+    if os.path.exists(real_csv_path):
+        try:
+            with open(real_csv_path, 'r', encoding='utf-8') as f:
+                csv_content = f.read()
+        except Exception as e:
+            # Fallback se der erro ao ler
+            csv_content = generate_default_template(categories)
+    else:
+        # Tenta caminho alternativo (raiz do app)
+        real_csv_path_alt = "/app/app/produtos_reais.csv"
+        if os.path.exists(real_csv_path_alt):
+             try:
+                with open(real_csv_path_alt, 'r', encoding='utf-8') as f:
+                    csv_content = f.read()
+             except Exception:
+                csv_content = generate_default_template(categories)
+        else:
+            # Fallback para o template padrão
+            csv_content = generate_default_template(categories)
+
     return {
-        "filename": "template_importacao_produtos.csv",
+        "filename": "produtos_boticario_natura_eudora_reais.csv",
         "content": csv_content,
         "categorias_disponiveis": [cat.name for cat in categories] if categories else [],
         "instrucoes": {

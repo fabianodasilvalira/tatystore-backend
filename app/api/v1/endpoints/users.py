@@ -161,6 +161,8 @@ async def create_user(
 async def list_users(
     skip: int = 0,
     limit: Optional[int] = None,
+    active_only: bool = False,
+    show_inactive: bool = False,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -174,12 +176,24 @@ async def list_users(
     **Paginação:**
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
+    - `active_only`: Se True, retorna apenas produtos ativos (padrão: False)
+    - `show_inactive`: Se True, retorna apenas produtos inativos (padrão: False)
     
     **Resposta:** Lista de usuários (inclui ativos e inativos) com metadados de paginação
     """
     query = db.query(User).filter(
         User.company_id == current_user.company_id
     )
+
+    # Filtro de ativos/inativos
+    if show_inactive:
+        # Mostrar apenas inativos
+        query = query.filter(User.is_active == False)
+    elif active_only:
+        # Mostrar apenas ativos
+        query = query.filter(User.is_active == True)
+    # Se nenhum dos dois, mostra todos (comportamento padrão de listagem geral se necessário, 
+    # mas o frontend vai controlar para mandar um dos dois normalmente)
     
     total = query.count()
     
