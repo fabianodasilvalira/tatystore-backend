@@ -265,6 +265,7 @@ async def import_products(
 from .template_helper import generate_default_template
 
 @router.get("/import/template", response_model=ImportTemplateResponse, summary="Download template CSV para importação")
+def download_template(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
