@@ -4,6 +4,7 @@ CRUD com isolamento multi-tenant
 """
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from typing import List, Optional
 from datetime import datetime
 import os
@@ -66,7 +67,14 @@ def create_company(
     )
     
     db.add(company)
-    db.flush()
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Dados inválidos ou duplicados (CNPJ/Slug já existente)."
+        )
     
     gerente_role = db.query(Role).filter(Role.name == "gerente").first()
     if not gerente_role:
@@ -106,7 +114,6 @@ def create_company(
     )
 
 
-@router.get("/", summary="Listar todas as empresas")
 @router.get("/", summary="Listar todas as empresas")
 def list_companies(
     skip: int = 0,

@@ -49,18 +49,44 @@ class TestEmailValidation:
 class TestCNPJValidation:
     """Testes de validação de CNPJ"""
     
-    def test_duplicate_cnpj_rejected(self, client, test_company1):
+    def test_duplicate_cnpj_rejected(self, client, test_company1, db):
         """Duas empresas não podem ter mesmo CNPJ"""
+        # Criar Super Admin para o teste
+        from app.models.role import Role
+        from app.models.user import User
+        from app.core.security import get_password_hash
+
+        sa_role = Role(name="Super Admin", description="God mode")
+        db.add(sa_role)
+        db.commit()
+        db.refresh(sa_role)
+
+        sa_user = User(
+            name="Super",
+            email="super@test.com",
+            password_hash=get_password_hash("123"),
+            role_id=sa_role.id,
+            is_active=True
+        )
+        db.add(sa_user)
+        db.commit()
+
+        # Login para pegar token
+        login_resp = client.post("/api/v1/auth/login", json={"email": "super@test.com", "password": "123"})
+        token = login_resp.json()["access_token"]
+        headers = {"Authorization": f"Bearer {token}"}
+
         company_data = {
             "name": "Empresa Duplicada",
-            "cnpj": test_company1.cnpj,  # CNPJ já existe
+            "cnpj": test_company1.cnpj,
             "email": "duplicada@empresa.com",
             "phone": "11111111111"
         }
         
         response = client.post(
             "/api/v1/companies/",
-            json=company_data
+            json=company_data,
+            headers=headers
         )
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
