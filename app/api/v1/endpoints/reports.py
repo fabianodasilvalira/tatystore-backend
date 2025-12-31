@@ -218,40 +218,56 @@ def report_profit(
             detail="Período inválido"
         )
     
-    sales = db.query(Sale).filter(
+    # OTIMIZAÇÃO: Cálculos via banco de dados
+    
+    # 1. Total Revenue
+    total_revenue = db.query(func.sum(Sale.total_amount)).filter(
         Sale.company_id == current_user.company_id,
         Sale.created_at >= start_date,
         Sale.created_at < end_date,
         Sale.status != SaleStatus.CANCELLED
-    ).all()
-    
-    total_revenue = sum(s.total_amount for s in sales)
-    total_cost = 0
-    products_without_cost = set()  # Produtos sem preço de custo
-    
-    for sale in sales:
-        for item in sale.items:
-            # item.product.cost_price é o custo atual do produto
-            cost_price = item.product.cost_price if item.product.cost_price is not None else 0.0
-            
-            # Registrar produtos sem preço de custo
-            if cost_price == 0.0 or item.product.cost_price is None:
-                products_without_cost.add((item.product.id, item.product.name))
-            
-            total_cost += float(cost_price) * item.quantity
+    ).scalar() or 0.0
+
+    # 2. Total Cost
+    # Junta Sale -> SaleItem e soma (unit_cost_price * quantity)
+    # Usa COALESCE(unit_cost_price, product.cost_price, 0) para fallback seguro
+    total_cost = db.query(
+        func.sum(
+            func.coalesce(SaleItem.unit_cost_price, Product.cost_price, 0.0) * SaleItem.quantity
+        )
+    ).join(Sale, SaleItem.sale_id == Sale.id)\
+     .join(Product, SaleItem.product_id == Product.id)\
+     .filter(
+        Sale.company_id == current_user.company_id,
+        Sale.created_at >= start_date,
+        Sale.created_at < end_date,
+        Sale.status != SaleStatus.CANCELLED
+    ).scalar() or 0.0
+
+    # 3. Produtos sem custo (Warning)
+    # Conta items onde custo efetivo é 0
+    items_without_cost = db.query(Product.id, Product.name)\
+        .join(SaleItem, SaleItem.product_id == Product.id)\
+        .join(Sale, SaleItem.sale_id == Sale.id)\
+        .filter(
+            Sale.company_id == current_user.company_id,
+            Sale.created_at >= start_date,
+            Sale.created_at < end_date,
+            Sale.status != SaleStatus.CANCELLED,
+            func.coalesce(SaleItem.unit_cost_price, Product.cost_price, 0.0) == 0.0
+        ).distinct().all()
 
     profit = total_revenue - total_cost
     margin = (profit / total_revenue * 100) if total_revenue > 0 else 0
     
-    # Preparar mensagem de aviso se houver produtos sem custo
     warning = None
-    if products_without_cost:
+    if items_without_cost:
         warning = {
-            "message": "Não é possível calcular o lucro com precisão. Alguns produtos vendidos não possuem preço de custo cadastrado. Para obter relatórios de lucro precisos, é necessário cadastrar o preço de compra de todos os produtos.",
-            "products_count": len(products_without_cost),
+            "message": "Alguns produtos vendidos não possuem preço de custo (histórico ou atual). Lucro pode estar impreciso.",
+            "products_count": len(items_without_cost),
             "products": [
-                {"id": prod_id, "name": prod_name}
-                for prod_id, prod_name in sorted(products_without_cost, key=lambda x: x[1])
+                {"id": i.id, "name": i.name}
+                for i in items_without_cost
             ]
         }
 
@@ -646,11 +662,11 @@ def report_sales_summary(
 
             # Calcular custo total usando custo do produto
             for item in sale.items:
-                # Buscar o custo atual do produto
-                cost_price = item.product.cost_price if item.product.cost_price is not None else 0.0
+                # MELHORIA #1: Usar custo histórico
+                cost_price = item.unit_cost_price if item.unit_cost_price is not None else (item.product.cost_price or 0.0)
                 
                 # Registrar produtos sem preço de custo
-                if cost_price == 0.0 or item.product.cost_price is None:
+                if cost_price == 0.0:
                     products_without_cost.add((item.product.id, item.product.name))
                 
                 total_cost += float(cost_price) * item.quantity

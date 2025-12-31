@@ -188,7 +188,8 @@ def create_sale(
                 product_id=item_info["product"].id,
                 quantity=item_info["data"].quantity,
                 unit_price=item_info["data"].unit_price,
-                total_price=item_info["total"]
+                total_price=item_info["total"],
+                unit_cost_price=item_info["product"].cost_price or 0.0  # Salva o custo historico
             )
             db.add(sale_item)
             

@@ -66,7 +66,11 @@ class Sale(Base):
         for item in self.items:
             # unit_price é o preço pelo qual foi vendido (normal ou promocional)
             # cost_price é o preço de custo do produto (pode ser None ou 0.0)
-            cost_price = item.product.cost_price if item.product.cost_price is not None else 0.0
+            
+            # MELHORIA #1: Usar custo histórico salvo no item
+            # Se unit_cost_price for None (vendas muito antigas pré-migração falha), usa fallback
+            cost_price = item.unit_cost_price if item.unit_cost_price is not None else (item.product.cost_price or 0.0)
+            
             item_profit = (item.unit_price - cost_price) * item.quantity
             total_profit += item_profit
         return total_profit
@@ -97,3 +101,6 @@ class SaleItem(Base):
     # Relacionamentos
     sale = relationship("Sale", back_populates="items")
     product = relationship("Product", back_populates="sale_items")
+    
+    # Historico de custo e lucro
+    unit_cost_price = Column(Float, nullable=True, default=0.0)  # Custo unitário no momento da venda
