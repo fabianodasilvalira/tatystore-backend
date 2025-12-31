@@ -99,7 +99,7 @@ def customer_without_cpf(db_session, test_company):
         name="Cliente Sem CPF",
         phone="11999999999",
         address="Rua Teste, 123",
-        cpf=None,  # SEM CPF
+        cpf=None,
         company_id=test_company.id,
         is_active=True
     )
@@ -116,7 +116,7 @@ def customer_without_phone(db_session, test_company):
         name="Cliente Sem Telefone",
         cpf="12345678901",
         address="Rua Teste, 123",
-        phone=None,  # SEM TELEFONE
+        phone=None,
         company_id=test_company.id,
         is_active=True
     )
@@ -133,7 +133,7 @@ def customer_without_address(db_session, test_company):
         name="Cliente Sem Endereço",
         cpf="12345678901",
         phone="11999999999",
-        address=None,  # SEM ENDEREÇO
+        address=None,
         company_id=test_company.id,
         is_active=True
     )
@@ -195,7 +195,7 @@ def test_cash_sale_with_incomplete_customer(db_session, test_user, test_product,
                 unit_price=100.0
             )
         ],
-        payment_type=" cash\,
+        payment_type="cash",
         discount_amount=0
     )
     
@@ -204,7 +204,7 @@ def test_cash_sale_with_incomplete_customer(db_session, test_user, test_product,
     
     assert sale is not None
     assert sale.customer_id == customer_incomplete.id
-    assert sale.payment_type == " cash\
+    assert sale.payment_type == "cash"
 
 
 # ============================================================================
@@ -224,7 +224,7 @@ def test_pix_sale_with_incomplete_customer(db_session, test_user, test_product, 
                 unit_price=100.0
             )
         ],
-        payment_type=\pix\,
+        payment_type="pix",
         discount_amount=0
     )
     
@@ -233,7 +233,7 @@ def test_pix_sale_with_incomplete_customer(db_session, test_user, test_product, 
     
     assert sale is not None
     assert sale.customer_id == customer_incomplete.id
-    assert sale.payment_type == \pix\
+    assert sale.payment_type == "pix"
 
 
 # ============================================================================
@@ -253,9 +253,8 @@ def test_credit_sale_without_cpf_should_fail(db_session, test_user, test_product
                 unit_price=100.0
             )
         ],
-        payment_type=\credit\,
+        payment_type="credit",
         installments_count=3,
-        first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
     )
     
@@ -280,9 +279,8 @@ def test_credit_sale_without_phone_should_fail(db_session, test_user, test_produ
                 unit_price=100.0
             )
         ],
-        payment_type=\credit\,
+        payment_type="credit",
         installments_count=3,
-        first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
     )
     
@@ -307,9 +305,8 @@ def test_credit_sale_without_address_should_fail(db_session, test_user, test_pro
                 unit_price=100.0
             )
         ],
-        payment_type=\credit\,
+        payment_type="credit",
         installments_count=3,
-        first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
     )
     
@@ -334,9 +331,8 @@ def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, t
                 unit_price=100.0
             )
         ],
-        payment_type=\credit\,
+        payment_type="credit",
         installments_count=3,
-        first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
     )
     
@@ -345,7 +341,7 @@ def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, t
     
     assert sale is not None
     assert sale.customer_id == customer_complete.id
-    assert sale.payment_type == \credit\
+    assert sale.payment_type == "credit"
     assert sale.total_amount == 200.0
 
 
@@ -362,9 +358,8 @@ def test_credit_sale_missing_multiple_fields(db_session, test_user, test_product
                 unit_price=100.0
             )
         ],
-        payment_type=\credit\,
+        payment_type="credit",
         installments_count=3,
-        first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
     )
     
