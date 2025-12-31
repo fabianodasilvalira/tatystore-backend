@@ -344,6 +344,7 @@ def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, t
         ],
         payment_type="credit",
         installments_count=3,
+        first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
     )
     
