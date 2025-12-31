@@ -754,3 +754,46 @@ def get_products_by_category(
         products_data.append(product_dict)
 
     return products_data
+
+
+@router.get("/low-stock", summary="Produtos com estoque baixo")
+def get_low_stock_products(
+    skip: int = Query(0, ge=0, description="Pular N registros"),
+    limit: int = Query(50, ge=1, le=100, description="Quantidade de registros (máximo 100)"),
+    current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
+    db: Session = Depends(get_db)
+):
+    """
+    Retorna produtos com estoque abaixo ou igual ao mínimo configurado.
+    Útil para identificar produtos que precisam de reposição.
+    """
+    query = db.query(Product).filter(
+        Product.company_id == current_user.company_id,
+        Product.is_active == True,
+        Product.stock_quantity <= Product.min_stock
+    ).order_by(Product.stock_quantity.asc())
+    
+    total = query.count()
+    products = query.offset(skip).limit(limit).all()
+    
+    products_data = []
+    for p in products:
+        product_dict = ProductResponse.model_validate(p).model_dump()
+        if p.category:
+            product_dict["category"] = CategoryInProduct.model_validate(p.category).model_dump()
+        
+        # Adicionar informações úteis
+        product_dict["stock_deficit"] = p.min_stock - p.stock_quantity
+        product_dict["needs_restock"] = True
+        
+        products_data.append(product_dict)
+    
+    return {
+        "total": total,
+        "products": products_data,
+        "metadata": {
+            "skip": skip,
+            "limit": limit,
+            "has_more": (skip + limit) < total
+        }
+    }

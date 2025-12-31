@@ -82,10 +82,11 @@ def create_sale(
             )
         
         for item_data in sale_data.items:
-            if item_data.quantity <= 0:
+            # Validar quantidade
+            if item_data.quantity <= 0 or item_data.quantity > 10000:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="Quantidade do item deve ser maior que zero"
+                    detail="Quantidade deve estar entre 1 e 10.000 unidades"
                 )
             
             # CORREÇÃO #4: Validar preço de venda
