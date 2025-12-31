@@ -15,8 +15,8 @@ from app.main import app
 from app.core.database import Base, get_db
 from app.core.security import get_password_hash
 from app.models.company import Company
-from app.models.role import Role
 from app.models.permission import Permission
+from app.models.role import Role
 from app.models.user import User
 from app.models.product import Product
 from app.models.customer import Customer

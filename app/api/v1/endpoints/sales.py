@@ -57,7 +57,6 @@ def create_sale(
     try:
         # Validar cliente com lock
         customer = db.query(Customer).filter(
-        customer = db.query(Customer).filter(
             Customer.id == sale_data.customer_id,
             Customer.company_id == current_user.company_id
         ).with_for_update().first()
