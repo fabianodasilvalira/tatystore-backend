@@ -1,0 +1,379 @@
+"""
+Testes TDD para validação condicional de clientes em vendas a crediário
+
+Testa a lógica de negócio diretamente usando pytest e fixtures
+"""
+
+import pytest
+from datetime import datetime, timedelta
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from fastapi import HTTPException
+
+from app.core.database import Base
+from app.models.company import Company
+from app.models.customer import Customer
+from app.models.product import Product
+from app.models.user import User
+from app.schemas.sale import SaleCreate, SaleItemCreate, PaymentMethod
+from app.api.v1.endpoints.sales import create_sale
+
+
+# Configuração do banco de dados de teste em memória
+SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
+
+@pytest.fixture(scope="function")
+def db_session():
+    """Cria uma sessão de banco de dados de teste"""
+    engine = create_engine(
+        SQLALCHEMY_TEST_DATABASE_URL,
+        connect_args={"check_same_thread": False}
+    )
+    Base.metadata.create_all(bind=engine)
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    
+    session = TestingSessionLocal()
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(bind=engine)
+
+
+@pytest.fixture
+def test_company(db_session):
+    """Cria uma empresa de teste"""
+    company = Company(
+        name="Empresa Teste",
+        cnpj="12345678000190",
+        email="teste@empresa.com",
+        phone="11999999999",
+        address="Rua Teste, 123",
+        is_active=True
+    )
+    db_session.add(company)
+    db_session.commit()
+    db_session.refresh(company)
+    return company
+
+
+@pytest.fixture
+def test_user(db_session, test_company):
+    """Cria um usuário de teste"""
+    user = User(
+        name="Admin Teste",
+        email="admin@teste.com",
+        hashed_password="hashed",
+        role="admin",
+        company_id=test_company.id,
+        is_active=True
+    )
+    db_session.add(user)
+    db_session.commit()
+    db_session.refresh(user)
+    return user
+
+
+@pytest.fixture
+def test_product(db_session, test_company):
+    """Cria um produto de teste"""
+    product = Product(
+        name="Produto Teste",
+        description="Descrição teste",
+        sale_price=100.0,
+        cost_price=50.0,
+        stock_quantity=1000,
+        company_id=test_company.id,
+        is_active=True
+    )
+    db_session.add(product)
+    db_session.commit()
+    db_session.refresh(product)
+    return product
+
+
+@pytest.fixture
+def customer_without_cpf(db_session, test_company):
+    """Cliente SEM CPF (mas com telefone e endereço)"""
+    customer = Customer(
+        name="Cliente Sem CPF",
+        phone="11999999999",
+        address="Rua Teste, 123",
+        cpf=None,  # SEM CPF
+        company_id=test_company.id,
+        is_active=True
+    )
+    db_session.add(customer)
+    db_session.commit()
+    db_session.refresh(customer)
+    return customer
+
+
+@pytest.fixture
+def customer_without_phone(db_session, test_company):
+    """Cliente SEM telefone (mas com CPF e endereço)"""
+    customer = Customer(
+        name="Cliente Sem Telefone",
+        cpf="12345678901",
+        address="Rua Teste, 123",
+        phone=None,  # SEM TELEFONE
+        company_id=test_company.id,
+        is_active=True
+    )
+    db_session.add(customer)
+    db_session.commit()
+    db_session.refresh(customer)
+    return customer
+
+
+@pytest.fixture
+def customer_without_address(db_session, test_company):
+    """Cliente SEM endereço (mas com CPF e telefone)"""
+    customer = Customer(
+        name="Cliente Sem Endereço",
+        cpf="12345678901",
+        phone="11999999999",
+        address=None,  # SEM ENDEREÇO
+        company_id=test_company.id,
+        is_active=True
+    )
+    db_session.add(customer)
+    db_session.commit()
+    db_session.refresh(customer)
+    return customer
+
+
+@pytest.fixture
+def customer_incomplete(db_session, test_company):
+    """Cliente SEM CPF, telefone e endereço"""
+    customer = Customer(
+        name="Cliente Incompleto",
+        cpf=None,
+        phone=None,
+        address=None,
+        company_id=test_company.id,
+        is_active=True
+    )
+    db_session.add(customer)
+    db_session.commit()
+    db_session.refresh(customer)
+    return customer
+
+
+@pytest.fixture
+def customer_complete(db_session, test_company):
+    """Cliente COM todos os dados"""
+    customer = Customer(
+        name="Cliente Completo",
+        cpf="12345678901",
+        phone="11999999999",
+        address="Rua Teste, 123, Bairro, Cidade - UF",
+        email="cliente@teste.com",
+        company_id=test_company.id,
+        is_active=True
+    )
+    db_session.add(customer)
+    db_session.commit()
+    db_session.refresh(customer)
+    return customer
+
+
+# ============================================================================
+# TESTES: Vendas à Vista (CASH) - Devem ACEITAR clientes sem dados completos
+# ============================================================================
+
+def test_cash_sale_with_incomplete_customer(db_session, test_user, test_product, customer_incomplete):
+    """
+    TDD: Venda à vista (CASH) deve ACEITAR cliente sem CPF, telefone e endereço
+    """
+    sale_data = SaleCreate(
+        customer_id=customer_incomplete.id,
+        items=[
+            SaleItemCreate(
+                product_id=test_product.id,
+                quantity=1,
+                unit_price=100.0
+            )
+        ],
+        payment_type=PaymentMethod.CASH,
+        discount_amount=0
+    )
+    
+    # Não deve lançar exceção
+    sale = create_sale(sale_data, current_user=test_user, db=db_session)
+    
+    assert sale is not None
+    assert sale.customer_id == customer_incomplete.id
+    assert sale.payment_type == PaymentMethod.CASH
+
+
+# ============================================================================
+# TESTES: Vendas PIX - Devem ACEITAR clientes sem dados completos
+# ============================================================================
+
+def test_pix_sale_with_incomplete_customer(db_session, test_user, test_product, customer_incomplete):
+    """
+    TDD: Venda PIX deve ACEITAR cliente sem CPF, telefone e endereço
+    """
+    sale_data = SaleCreate(
+        customer_id=customer_incomplete.id,
+        items=[
+            SaleItemCreate(
+                product_id=test_product.id,
+                quantity=1,
+                unit_price=100.0
+            )
+        ],
+        payment_type=PaymentMethod.PIX,
+        discount_amount=0
+    )
+    
+    # Não deve lançar exceção
+    sale = create_sale(sale_data, current_user=test_user, db=db_session)
+    
+    assert sale is not None
+    assert sale.customer_id == customer_incomplete.id
+    assert sale.payment_type == PaymentMethod.PIX
+
+
+# ============================================================================
+# TESTES: Vendas a Crediário - Devem REJEITAR clientes sem dados completos
+# ============================================================================
+
+def test_credit_sale_without_cpf_should_fail(db_session, test_user, test_product, customer_without_cpf):
+    """
+    TDD: Venda a crediário deve REJEITAR cliente sem CPF
+    """
+    sale_data = SaleCreate(
+        customer_id=customer_without_cpf.id,
+        items=[
+            SaleItemCreate(
+                product_id=test_product.id,
+                quantity=1,
+                unit_price=100.0
+            )
+        ],
+        payment_type=PaymentMethod.CREDIT,
+        installments_count=3,
+        first_due_date=datetime.now() + timedelta(days=30),
+        discount_amount=0
+    )
+    
+    # Deve lançar HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        create_sale(sale_data, current_user=test_user, db=db_session)
+    
+    assert exc_info.value.status_code == 400
+    assert "CPF" in exc_info.value.detail
+
+
+def test_credit_sale_without_phone_should_fail(db_session, test_user, test_product, customer_without_phone):
+    """
+    TDD: Venda a crediário deve REJEITAR cliente sem telefone
+    """
+    sale_data = SaleCreate(
+        customer_id=customer_without_phone.id,
+        items=[
+            SaleItemCreate(
+                product_id=test_product.id,
+                quantity=1,
+                unit_price=100.0
+            )
+        ],
+        payment_type=PaymentMethod.CREDIT,
+        installments_count=3,
+        first_due_date=datetime.now() + timedelta(days=30),
+        discount_amount=0
+    )
+    
+    # Deve lançar HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        create_sale(sale_data, current_user=test_user, db=db_session)
+    
+    assert exc_info.value.status_code == 400
+    assert "Telefone" in exc_info.value.detail
+
+
+def test_credit_sale_without_address_should_fail(db_session, test_user, test_product, customer_without_address):
+    """
+    TDD: Venda a crediário deve REJEITAR cliente sem endereço
+    """
+    sale_data = SaleCreate(
+        customer_id=customer_without_address.id,
+        items=[
+            SaleItemCreate(
+                product_id=test_product.id,
+                quantity=1,
+                unit_price=100.0
+            )
+        ],
+        payment_type=PaymentMethod.CREDIT,
+        installments_count=3,
+        first_due_date=datetime.now() + timedelta(days=30),
+        discount_amount=0
+    )
+    
+    # Deve lançar HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        create_sale(sale_data, current_user=test_user, db=db_session)
+    
+    assert exc_info.value.status_code == 400
+    assert "Endereço" in exc_info.value.detail
+
+
+def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, test_product, customer_complete):
+    """
+    TDD: Venda a crediário deve ACEITAR cliente com todos os dados
+    """
+    sale_data = SaleCreate(
+        customer_id=customer_complete.id,
+        items=[
+            SaleItemCreate(
+                product_id=test_product.id,
+                quantity=2,
+                unit_price=100.0
+            )
+        ],
+        payment_type=PaymentMethod.CREDIT,
+        installments_count=3,
+        first_due_date=datetime.now() + timedelta(days=30),
+        discount_amount=0
+    )
+    
+    # Não deve lançar exceção
+    sale = create_sale(sale_data, current_user=test_user, db=db_session)
+    
+    assert sale is not None
+    assert sale.customer_id == customer_complete.id
+    assert sale.payment_type == PaymentMethod.CREDIT
+    assert sale.total_amount == 200.0
+
+
+def test_credit_sale_missing_multiple_fields(db_session, test_user, test_product, customer_incomplete):
+    """
+    TDD: Venda a crediário deve listar TODOS os campos faltantes na mensagem de erro
+    """
+    sale_data = SaleCreate(
+        customer_id=customer_incomplete.id,
+        items=[
+            SaleItemCreate(
+                product_id=test_product.id,
+                quantity=1,
+                unit_price=100.0
+            )
+        ],
+        payment_type=PaymentMethod.CREDIT,
+        installments_count=3,
+        first_due_date=datetime.now() + timedelta(days=30),
+        discount_amount=0
+    )
+    
+    # Deve lançar HTTPException
+    with pytest.raises(HTTPException) as exc_info:
+        create_sale(sale_data, current_user=test_user, db=db_session)
+    
+    assert exc_info.value.status_code == 400
+    # Deve mencionar todos os 3 campos faltantes
+    assert "CPF" in exc_info.value.detail
+    assert "Telefone" in exc_info.value.detail
+    assert "Endereço" in exc_info.value.detail
