@@ -74,7 +74,7 @@ def create_sale(
             )
         
         # Validar dados completos do cliente para vendas a crediário
-        if sale_data.payment_type == PaymentMethod.CREDIT:
+        if sale_data.payment_type == "credit":
             missing_fields = []
             if not customer.cpf:
                 missing_fields.append("CPF")
