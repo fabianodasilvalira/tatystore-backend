@@ -15,6 +15,7 @@ class SaleCreate(BaseModel):
     items: List[SaleItemIn]
     payment_type: str = Field(pattern="^(cash|credit|pix)$")
     discount_amount: Optional[float] = Field(default=0, ge=0)
+    first_due_date: Optional[date] = None
     installments_count: Optional[int] = Field(default=None, ge=1, le=60)
     notes: Optional[str] = None
 
