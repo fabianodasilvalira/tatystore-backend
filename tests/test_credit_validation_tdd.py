@@ -15,7 +15,8 @@ from app.models.company import Company
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.user import User
-from app.models.sale import Sale, SaleItem, Installment
+from app.models.sale import Sale, SaleItem
+from app.models.installment import Installment
 from app.models.category import Category
 from app.models.stock_movement import StockMovement
 from app.schemas.sale import SaleCreate, SaleItemIn
