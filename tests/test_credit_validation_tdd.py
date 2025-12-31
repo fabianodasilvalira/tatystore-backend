@@ -5,6 +5,7 @@ Testa a lógica de negócio diretamente usando pytest e fixtures
 """
 
 import pytest
+import time
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -61,11 +62,20 @@ def test_company(db_session):
 @pytest.fixture
 def test_user(db_session, test_company):
     """Cria um usuário de teste"""
+    # Primeiro, precisamos de um role
+    from app.models.role import Role
+    role = db_session.query(Role).filter(Role.name == "admin").first()
+    if not role:
+        role = Role(name="admin", description="Administrator")
+        db_session.add(role)
+        db_session.commit()
+        db_session.refresh(role)
+    
     user = User(
         name="Admin Teste",
-        email="admin@teste.com",
-        hashed_password="hashed",
-        role="admin",
+        email=f"admin{int(time.time() * 1000)}@teste.com",
+        password_hash="hashed",
+        role_id=role.id,
         company_id=test_company.id,
         is_active=True
     )
