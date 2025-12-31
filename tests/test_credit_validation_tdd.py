@@ -15,7 +15,7 @@ from app.models.company import Company
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.user import User
-from app.schemas.sale import SaleCreate, SaleItemCreate, PaymentMethod
+from app.schemas.sale import SaleCreate, SaleItemIn, PaymentMethod
 from app.api.v1.endpoints.sales import create_sale
 
 
@@ -189,7 +189,7 @@ def test_cash_sale_with_incomplete_customer(db_session, test_user, test_product,
     sale_data = SaleCreate(
         customer_id=customer_incomplete.id,
         items=[
-            SaleItemCreate(
+            SaleItemIn(
                 product_id=test_product.id,
                 quantity=1,
                 unit_price=100.0
@@ -218,7 +218,7 @@ def test_pix_sale_with_incomplete_customer(db_session, test_user, test_product, 
     sale_data = SaleCreate(
         customer_id=customer_incomplete.id,
         items=[
-            SaleItemCreate(
+            SaleItemIn(
                 product_id=test_product.id,
                 quantity=1,
                 unit_price=100.0
@@ -247,7 +247,7 @@ def test_credit_sale_without_cpf_should_fail(db_session, test_user, test_product
     sale_data = SaleCreate(
         customer_id=customer_without_cpf.id,
         items=[
-            SaleItemCreate(
+            SaleItemIn(
                 product_id=test_product.id,
                 quantity=1,
                 unit_price=100.0
@@ -274,7 +274,7 @@ def test_credit_sale_without_phone_should_fail(db_session, test_user, test_produ
     sale_data = SaleCreate(
         customer_id=customer_without_phone.id,
         items=[
-            SaleItemCreate(
+            SaleItemIn(
                 product_id=test_product.id,
                 quantity=1,
                 unit_price=100.0
@@ -301,7 +301,7 @@ def test_credit_sale_without_address_should_fail(db_session, test_user, test_pro
     sale_data = SaleCreate(
         customer_id=customer_without_address.id,
         items=[
-            SaleItemCreate(
+            SaleItemIn(
                 product_id=test_product.id,
                 quantity=1,
                 unit_price=100.0
@@ -328,7 +328,7 @@ def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, t
     sale_data = SaleCreate(
         customer_id=customer_complete.id,
         items=[
-            SaleItemCreate(
+            SaleItemIn(
                 product_id=test_product.id,
                 quantity=2,
                 unit_price=100.0
@@ -356,7 +356,7 @@ def test_credit_sale_missing_multiple_fields(db_session, test_user, test_product
     sale_data = SaleCreate(
         customer_id=customer_incomplete.id,
         items=[
-            SaleItemCreate(
+            SaleItemIn(
                 product_id=test_product.id,
                 quantity=1,
                 unit_price=100.0
