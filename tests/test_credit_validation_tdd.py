@@ -41,11 +41,13 @@ def db_session():
 @pytest.fixture
 def test_company(db_session):
     """Cria uma empresa de teste"""
+    import time
+    timestamp = str(int(time.time() * 1000))  # milliseconds
     company = Company(
-        name="Empresa Teste",
-        slug="empresa-teste",
-        cnpj="12345678000190",
-        email="teste@empresa.com",
+        name=f"Empresa Teste {timestamp}",
+        slug=f"empresa-teste-{timestamp}",
+        cnpj=f"{timestamp[:14]}",  # Use timestamp as CNPJ
+        email=f"teste{timestamp}@empresa.com",
         phone="11999999999",
         address="Rua Teste, 123",
         is_active=True
