@@ -9,7 +9,6 @@ from sqlalchemy import and_, or_, func, desc
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.core.database import get_db
-print("DEBUG: LOADING SALES MODULE v2")
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.models.sale import Sale, PaymentType, SaleStatus, SaleItem
@@ -55,18 +54,9 @@ def create_sale(
 ):
     """Registrar Nova Venda com validação completa"""
     
-    # DEBUG
-    try:
-        print(f"DEBUG SALES: sale_data type: {type(sale_data)}")
-        print(f"DEBUG SALES: sale_data keys: {sale_data.model_dump().keys() if hasattr(sale_data, 'model_dump') else sale_data.__dict__.keys()}")
-        print(f"DEBUG SALES: has first_due_date? {hasattr(sale_data, 'first_due_date')}")
-        if hasattr(sale_data, 'first_due_date'):
-            print(f"DEBUG SALES: first_due_date value: {sale_data.first_due_date}")
-    except Exception as e:
-        print(f"DEBUG SALES EXCEPTION: {e}")
-
     try:
         # Validar cliente com lock
+        customer = db.query(Customer).filter(
         customer = db.query(Customer).filter(
             Customer.id == sale_data.customer_id,
             Customer.company_id == current_user.company_id
@@ -257,13 +247,14 @@ def create_sale(
                     amount = base_amount
                 
                 # MELHORIA #8: Data de vencimento personalizada
-                if sale_data.first_due_date:
+                first_due = getattr(sale_data, 'first_due_date', None)
+                if first_due:
                     # Se for a primeira parcela (i=0), usa a data exata
                     # Se for as seguintes, soma 30 dias * i a partir da primeira data
                     if i == 0:
-                        due_date = sale_data.first_due_date
+                        due_date = first_due
                     else:
-                        due_date = sale_data.first_due_date + timedelta(days=30 * i)
+                        due_date = first_due + timedelta(days=30 * i)
                 else:
                     # Comportamento padrão: 30 dias a partir de hoje
                     due_date = date.today() + timedelta(days=30 * (i + 1))

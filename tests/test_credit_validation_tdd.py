@@ -349,10 +349,6 @@ def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, t
         discount_amount=0
     )
     
-    print(f"DEBUG TEST: sale_data type: {type(sale_data)}")
-    print(f"DEBUG TEST: sale_data id: {id(sale_data)}")
-    print(f"DEBUG TEST: first_due_date value: {sale_data.first_due_date}")
-    
     # Não deve lançar exceção
     sale = create_sale(sale_data, current_user=test_user, db=db_session)
     
