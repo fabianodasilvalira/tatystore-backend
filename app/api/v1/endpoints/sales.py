@@ -73,6 +73,22 @@ def create_sale(
                 detail="Cliente está inativo e não pode realizar compras"
             )
         
+        # Validar dados completos do cliente para vendas a crediário
+        if sale_data.payment_type == PaymentMethod.CREDIT:
+            missing_fields = []
+            if not customer.cpf:
+                missing_fields.append("CPF")
+            if not customer.phone:
+                missing_fields.append("Telefone")
+            if not customer.address:
+                missing_fields.append("Endereço")
+            
+            if missing_fields:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Para vendas a crediário, o cliente precisa ter: {', '.join(missing_fields)}"
+                )
+        
         # Validar e processar itens
         subtotal = 0.0
         sale_items = []
