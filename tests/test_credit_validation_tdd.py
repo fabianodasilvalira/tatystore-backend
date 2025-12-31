@@ -15,29 +15,26 @@ from app.models.company import Company
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.user import User
+from app.models.sale import Sale, SaleItem, Installment
+from app.models.category import Category
+from app.models.stock_movement import StockMovement
 from app.schemas.sale import SaleCreate, SaleItemIn
 from app.api.v1.endpoints.sales import create_sale
 
 
-# Configuração do banco de dados de teste em memória
-SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
+# Usar o banco de dados real para testes (PostgreSQL)
+from app.core.database import SessionLocal
 
 @pytest.fixture(scope="function")
 def db_session():
-    """Cria uma sessão de banco de dados de teste"""
-    engine = create_engine(
-        SQLALCHEMY_TEST_DATABASE_URL,
-        connect_args={"check_same_thread": False}
-    )
-    Base.metadata.create_all(bind=engine)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    
-    session = TestingSessionLocal()
+    """Cria uma sessão de banco de dados de teste usando o banco real"""
+    session = SessionLocal()
     try:
         yield session
+        # Rollback para não afetar outros testes
+        session.rollback()
     finally:
         session.close()
-        Base.metadata.drop_all(bind=engine)
 
 
 @pytest.fixture
@@ -45,6 +42,7 @@ def test_company(db_session):
     """Cria uma empresa de teste"""
     company = Company(
         name="Empresa Teste",
+        slug="empresa-teste",
         cnpj="12345678000190",
         email="teste@empresa.com",
         phone="11999999999",
