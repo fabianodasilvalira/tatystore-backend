@@ -94,3 +94,9 @@ class UserProfileUpdate(BaseModel):
     
     name: Optional[str] = None
     email: Optional[EmailStr] = None
+
+class RoleInfo(BaseModel):
+    """Schema para informações básicas de perfis"""
+    id: int
+    name: str
+    model_config = ConfigDict(from_attributes=True)

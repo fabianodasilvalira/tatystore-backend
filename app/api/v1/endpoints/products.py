@@ -366,7 +366,7 @@ def list_products(
             product_dict["category"] = CategoryInProduct.model_validate(product.category).model_dump()
         products_data.append(product_dict)
 
-    return paginate(products_data, total, skip, limit)
+    return products_data
 
 
 @router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED, summary="Criar novo produto")

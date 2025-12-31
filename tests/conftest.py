@@ -100,18 +100,20 @@ def test_roles(db):
     Adicionando permissões ao commit para evitar lazy loading
     """
     print("[v0] Creating test roles...")
+    super_admin_role = Role(name="Super Admin", description="Administrador Supremo do Sistema")
     admin_role = Role(name="Administrador", description="Administrador com acesso total")
     manager_role = Role(name="Gerente", description="Gerente com acesso intermediário")
     user_role = Role(name="usuario", description="Usuário básico")
     
-    db.add_all([admin_role, manager_role, user_role])
+    db.add_all([super_admin_role, admin_role, manager_role, user_role])
     db.commit()
+    db.refresh(super_admin_role)
     db.refresh(admin_role)
     db.refresh(manager_role)
     db.refresh(user_role)
     
-    print(f"[v0] Roles created: admin={admin_role.id}, gerente={manager_role.id}, usuario={user_role.id}")
     return {
+        "super_admin": super_admin_role,
         "admin": admin_role,
         "gerente": manager_role,
         "usuario": user_role
@@ -158,6 +160,25 @@ def test_company2(db):
     db.refresh(company)
     print(f"[v0] Company 2 created with id={company.id}")
     return company
+
+
+@pytest.fixture(scope="function")
+def test_super_admin_user(db, test_roles):
+    """
+    Cria usuário super administrador do sistema
+    """
+    user = User(
+        name="Super Admin Teste",
+        email="superadmin@teste.com",
+        password_hash=get_password_hash("Admin@123"),
+        company_id=None,  # Super Admin não tem empresa
+        role_id=test_roles["super_admin"].id,
+        is_active=True
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
 
 
 @pytest.fixture(scope="function")
@@ -242,6 +263,19 @@ def test_user_company2(db, test_company2, test_roles):
     db.refresh(user)
     print(f"[v0] Company2 user created with id={user.id}")
     return user
+
+
+@pytest.fixture(scope="function")
+def super_admin_token(client, test_super_admin_user):
+    """
+    Obtém token JWT do super administrador
+    """
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"email": test_super_admin_user.email, "password": "Admin@123"},
+    )
+    assert response.status_code == 200
+    return response.json()["access_token"]
 
 
 @pytest.fixture(scope="function")

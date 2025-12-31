@@ -332,3 +332,90 @@ def get_installment(
         raise HTTPException(status_code=404, detail=Messages.RESOURCE_NOT_FOUND)
 
     return _enrich_installment_with_balance(installment)
+
+
+@router.api_route("/{installment_id}/pay", methods=["PATCH", "POST"], summary="Marcar parcela como paga (compatibilidade)")
+def pay_installment_patch(
+        installment_id: int,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Marcar parcela como paga (Endpoint de compatibilidade)
+    """
+    installment = db.query(Installment).filter(
+        Installment.id == installment_id,
+        Installment.company_id == current_user.company_id
+    ).first()
+
+    if not installment:
+        raise HTTPException(status_code=404, detail=Messages.INSTALLMENT_NOT_FOUND)
+
+    installment.status = InstallmentStatus.PAID
+    installment.paid_at = datetime.utcnow()
+    db.commit()
+    db.refresh(installment)
+
+    return _enrich_installment_with_balance(installment)
+
+
+@router.get("/overdue", summary="Listar parcelas vencidas (compatibilidade)")
+def list_overdue_installments_compat(
+        skip: int = 0,
+        limit: Optional[int] = None,
+        current_user: User = Depends(get_current_user),
+        db: Session = Depends(get_db)
+):
+    """
+    Listar parcelas vencidas (Endpoint de compatibilidade)
+    """
+    query = db.query(Installment).filter(
+        Installment.company_id == current_user.company_id,
+        Installment.status == InstallmentStatus.OVERDUE
+    ).order_by(Installment.due_date.asc())
+
+    total = query.count()
+    if limit:
+        installments = query.offset(skip).limit(limit).all()
+    else:
+        installments = query.offset(skip).all()
+        limit = total if total > 0 else 1
+
+    installments_data = [_enrich_installment_with_balance(i) for i in installments]
+    return paginate(installments_data, total, skip, limit)
+
+
+@router.post("/mark-overdue", summary="Marcar parcelas vencidas da empresa")
+def mark_overdue_company(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """
+    **Marcar Parcelas Vencidas da Empresa**
+    
+    Analisa todas as parcelas pendentes da empresa do usuário logado e 
+    as marca como 'overdue' se a data de vencimento for anterior a hoje.
+    
+    Este endpoint é protegido e isolado por empresa. Diferente do cron global, 
+    ele afeta apenas os dados da empresa do solicitante.
+    """
+    today = date.today()
+    
+    pending_overdue = db.query(Installment).filter(
+        Installment.company_id == current_user.company_id,
+        Installment.due_date < today,
+        Installment.status == InstallmentStatus.PENDING
+    ).all()
+    
+    updated_count = 0
+    for installment in pending_overdue:
+        installment.status = InstallmentStatus.OVERDUE
+        updated_count += 1
+    
+    db.commit()
+    
+    return {
+        "message": f"{updated_count} parcelas marcadas como vencidas",
+        "updated_count": updated_count,
+        "executed_at": str(today)
+    }

@@ -5,7 +5,7 @@ import pytest
 from tests.conftest import get_auth_headers
 
 
-def test_create_company_success(client):
+def test_create_company_success(client, super_admin_token):
     """
     Teste: Criar empresa com dados válidos deve retornar URL de acesso
     """
@@ -16,7 +16,8 @@ def test_create_company_success(client):
             "cnpj": "11222333000144",
             "email": "contato@novaempresa.com",
             "phone": "11999887766"
-        }
+        },
+        headers=get_auth_headers(super_admin_token)
     )
     
     assert response.status_code == 200
@@ -28,7 +29,7 @@ def test_create_company_success(client):
     assert data["slug"] in data["access_url"]
 
 
-def test_create_company_duplicate_cnpj(client, test_company1):
+def test_create_company_duplicate_cnpj(client, super_admin_token, test_company1):
     """
     Teste: CNPJ duplicado deve falhar
     """
@@ -39,7 +40,8 @@ def test_create_company_duplicate_cnpj(client, test_company1):
             "cnpj": test_company1.cnpj,
             "email": "outro@email.com",
             "phone": "11888776655"
-        }
+        },
+        headers=get_auth_headers(super_admin_token)
     )
     
     assert response.status_code == 400

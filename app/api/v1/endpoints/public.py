@@ -142,11 +142,7 @@ async def list_company_products(
     products_on_promotion = promotion_query.all()
     promotion_data = [ProductPublicResponse.model_validate(p).model_dump() for p in products_on_promotion]
 
-    # Retornar usando a função paginate para formato consistente, com array adicional de promoções
-    response = paginate(products_data, total, skip, limit)
-    response["promocao"] = promotion_data
-
-    return response
+    return products_data
 
 
 @router.get("/companies/{company_slug}/categories/{category_id}/products", summary="Listar produtos de uma categoria (público)")

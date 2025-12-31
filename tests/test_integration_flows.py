@@ -12,7 +12,7 @@ from app.models.product import Product
 class TestCompleteCompanySetupFlow:
     """Testes de fluxo completo de onboarding da empresa"""
     
-    def test_full_company_onboarding_flow(self, client, admin_token, db):
+    def test_full_company_onboarding_flow(self, client, super_admin_token, admin_token, db):
         """Validar fluxo completo de onboarding: empresa > produto > cliente > venda
         
         Este teste percorre o workflow completo de setup de uma nova empresa.
@@ -30,7 +30,7 @@ class TestCompleteCompanySetupFlow:
                 "address": "Rua Teste, 123",
                 "phone": "1199999999"
             },
-            headers={"Authorization": f"Bearer {admin_token}"}
+            headers={"Authorization": f"Bearer {super_admin_token}"}
         )
         assert company_response.status_code in [status.HTTP_200_OK, status.HTTP_201_CREATED], \
             f"Expected 200 or 201, got {company_response.status_code}: {company_response.text}"

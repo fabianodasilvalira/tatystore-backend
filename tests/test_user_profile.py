@@ -3,20 +3,14 @@ Testes para Endpoints de Perfil de Usuário
 Testa GET /users/me, PUT /users/me e POST /auth/change-password
 """
 import pytest
-from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
-
-from app.main import app
 from app.models.user import User
 from app.models.role import Role
 from app.models.company import Company
 from app.core.security import hash_password, verify_password
 
 
-client = TestClient(app)
-
-
-def test_get_my_profile_success(db: Session):
+def test_get_my_profile_success(client, db: Session):
     """Teste: Obter perfil próprio com sucesso"""
     # Criar empresa
     company = Company(
@@ -40,7 +34,7 @@ def test_get_my_profile_success(db: Session):
     user = User(
         name="Test User",
         email="testuser@test.com",
-        password_hash=hash_password("test123"),
+        password_hash=hash_password("Test@123"),
         company_id=company.id,
         role_id=role.id,
         is_active=True
@@ -51,7 +45,7 @@ def test_get_my_profile_success(db: Session):
     # Login
     login_response = client.post("/api/v1/auth/login", json={
         "email": "testuser@test.com",
-        "password": "test123"
+        "password": "Test@123"
     })
     assert login_response.status_code == 200
     token = login_response.json()["access_token"]
@@ -69,7 +63,7 @@ def test_get_my_profile_success(db: Session):
     assert data["company_id"] == company.id
 
 
-def test_update_my_profile_name_success(db: Session):
+def test_update_my_profile_name_success(client, db: Session):
     """Teste: Atualizar nome do perfil com sucesso"""
     # Criar empresa
     company = Company(
@@ -93,7 +87,7 @@ def test_update_my_profile_name_success(db: Session):
     user = User(
         name="Old Name",
         email="update@test.com",
-        password_hash=hash_password("test123"),
+        password_hash=hash_password("Test@123"),
         company_id=company.id,
         role_id=role.id,
         is_active=True
@@ -104,7 +98,7 @@ def test_update_my_profile_name_success(db: Session):
     # Login
     login_response = client.post("/api/v1/auth/login", json={
         "email": "update@test.com",
-        "password": "test123"
+        "password": "Test@123"
     })
     token = login_response.json()["access_token"]
     
@@ -121,7 +115,7 @@ def test_update_my_profile_name_success(db: Session):
     assert data["email"] == "update@test.com"  # Email não mudou
 
 
-def test_update_my_profile_email_duplicate_rejected(db: Session):
+def test_update_my_profile_email_duplicate_rejected(client, db: Session):
     """Teste: Rejeitar atualização de email duplicado"""
     # Criar empresa
     company = Company(
@@ -145,7 +139,7 @@ def test_update_my_profile_email_duplicate_rejected(db: Session):
     user1 = User(
         name="User 1",
         email="user1@test.com",
-        password_hash=hash_password("test123"),
+        password_hash=hash_password("Test@123"),
         company_id=company.id,
         role_id=role.id,
         is_active=True
@@ -153,7 +147,7 @@ def test_update_my_profile_email_duplicate_rejected(db: Session):
     user2 = User(
         name="User 2",
         email="user2@test.com",
-        password_hash=hash_password("test123"),
+        password_hash=hash_password("Test@123"),
         company_id=company.id,
         role_id=role.id,
         is_active=True
@@ -164,7 +158,7 @@ def test_update_my_profile_email_duplicate_rejected(db: Session):
     # Login como user2
     login_response = client.post("/api/v1/auth/login", json={
         "email": "user2@test.com",
-        "password": "test123"
+        "password": "Test@123"
     })
     token = login_response.json()["access_token"]
     
@@ -179,7 +173,7 @@ def test_update_my_profile_email_duplicate_rejected(db: Session):
     assert "já cadastrado" in response.json()["detail"].lower()
 
 
-def test_change_password_success(db: Session):
+def test_change_password_success(client, db: Session):
     """Teste: Alterar senha com sucesso"""
     # Criar empresa
     company = Company(
@@ -203,7 +197,7 @@ def test_change_password_success(db: Session):
     user = User(
         name="Password Test",
         email="password@test.com",
-        password_hash=hash_password("oldpass123"),
+        password_hash=hash_password("OldPass@123"),
         company_id=company.id,
         role_id=role.id,
         is_active=True
@@ -214,7 +208,7 @@ def test_change_password_success(db: Session):
     # Login com senha antiga
     login_response = client.post("/api/v1/auth/login", json={
         "email": "password@test.com",
-        "password": "oldpass123"
+        "password": "OldPass@123"
     })
     token = login_response.json()["access_token"]
     
@@ -223,8 +217,8 @@ def test_change_password_success(db: Session):
         "/api/v1/auth/change-password",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "old_password": "oldpass123",
-            "new_password": "newpass123"
+            "old_password": "OldPass@123",
+            "new_password": "NewPass@123"
         }
     )
     
@@ -234,12 +228,12 @@ def test_change_password_success(db: Session):
     # Verificar que a nova senha funciona
     login_new = client.post("/api/v1/auth/login", json={
         "email": "password@test.com",
-        "password": "newpass123"
+        "password": "NewPass@123"
     })
     assert login_new.status_code == 200
 
 
-def test_change_password_wrong_old_password(db: Session):
+def test_change_password_wrong_old_password(client, db: Session):
     """Teste: Rejeitar alteração de senha com senha antiga incorreta"""
     # Criar empresa
     company = Company(
@@ -263,7 +257,7 @@ def test_change_password_wrong_old_password(db: Session):
     user = User(
         name="Wrong Pass Test",
         email="wrongpass@test.com",
-        password_hash=hash_password("correctpass"),
+        password_hash=hash_password("CorrectPass@123"),
         company_id=company.id,
         role_id=role.id,
         is_active=True
@@ -274,7 +268,7 @@ def test_change_password_wrong_old_password(db: Session):
     # Login
     login_response = client.post("/api/v1/auth/login", json={
         "email": "wrongpass@test.com",
-        "password": "correctpass"
+        "password": "CorrectPass@123"
     })
     token = login_response.json()["access_token"]
     
@@ -283,8 +277,8 @@ def test_change_password_wrong_old_password(db: Session):
         "/api/v1/auth/change-password",
         headers={"Authorization": f"Bearer {token}"},
         json={
-            "old_password": "wrongoldpass",
-            "new_password": "newpass123"
+            "old_password": "WrongOldPass@123",
+            "new_password": "NewPass@123"
         }
     )
     
@@ -292,7 +286,7 @@ def test_change_password_wrong_old_password(db: Session):
     assert "incorreta" in response.json()["detail"].lower()
 
 
-def test_super_admin_can_edit_own_profile(db: Session):
+def test_super_admin_can_edit_own_profile(client, db: Session):
     """Teste: Super Admin pode editar seu próprio perfil"""
     # Criar role Super Admin
     super_admin_role = db.query(Role).filter(Role.name == "Super Admin").first()
@@ -305,7 +299,7 @@ def test_super_admin_can_edit_own_profile(db: Session):
     super_admin = User(
         name="Super Admin",
         email="superadmin@test.com",
-        password_hash=hash_password("admin123"),
+        password_hash=hash_password("Admin@123"),
         company_id=None,  # Super Admin não tem empresa
         role_id=super_admin_role.id,
         is_active=True
@@ -316,7 +310,7 @@ def test_super_admin_can_edit_own_profile(db: Session):
     # Login
     login_response = client.post("/api/v1/auth/login", json={
         "email": "superadmin@test.com",
-        "password": "admin123"
+        "password": "Admin@123"
     })
     token = login_response.json()["access_token"]
     

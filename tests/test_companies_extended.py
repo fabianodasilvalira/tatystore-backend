@@ -8,16 +8,16 @@ from fastapi import status
 class TestCompanyGetById:
     """Testes de buscar empresa por ID"""
     
-    def test_get_company_by_id_own_company(self, client, admin_token, test_company):
+    def test_get_company_by_id_own_company(self, client, admin_token, test_company1):
         """Deve buscar própria empresa por ID"""
         response = client.get(
-            f"/api/v1/companies/{test_company.id}",
+            f"/api/v1/companies/{test_company1.id}",
             headers={"Authorization": f"Bearer {admin_token}"}
         )
         
         assert response.status_code == status.HTTP_200_OK
         data = response.json()
-        assert data["id"] == test_company.id
+        assert data["id"] == test_company1.id
     
     def test_get_company_by_id_other_company(self, client, admin_token, test_company2):
         """Admin de empresa A não deve acessar empresa B"""
@@ -42,15 +42,18 @@ class TestCompanyGetById:
 class TestCompanyDelete:
     """Testes de desativação de empresa"""
     
-    def test_delete_company_as_super_admin(self, client, admin_token, test_company, db):
+    def test_delete_company_as_super_admin(self, client, super_admin_token, test_company1, db):
         """Super admin deve poder desativar empresa"""
         response = client.delete(
-            f"/api/v1/companies/{test_company.id}",
-            headers={"Authorization": f"Bearer {admin_token}"}
+            f"/api/v1/companies/{test_company1.id}",
+            headers={"Authorization": f"Bearer {super_admin_token}"}
         )
         
-        # Implementação depende se existe super admin
-        assert response.status_code in [status.HTTP_204_NO_CONTENT, status.HTTP_403_FORBIDDEN, status.HTTP_404_NOT_FOUND]
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+        
+        # Verificar se foi desativada no banco
+        db.refresh(test_company1)
+        assert test_company1.is_active is False
     
     def test_manager_cannot_delete_company(self, client, manager_token, test_company):
         """Gerente não deve poder desativar empresa"""

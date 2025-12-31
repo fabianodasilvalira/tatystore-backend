@@ -218,7 +218,7 @@ class TestPaymentValidations:
         else:
             detail_str = detail.lower() if isinstance(detail, str) else str(detail)
         
-        assert "maior que zero" in detail_str.lower() or "obrigatório" in detail_str.lower() or "value_error" in detail_str.lower()
+        assert "maior que zero" in detail_str.lower() or "obrigatório" in detail_str.lower() or "value_error" in detail_str.lower() or "greater than 0" in detail_str.lower()
     
     def test_payment_zero_amount(self, client, admin_token, test_product, test_customer, db):
         """Testa que valor zero é rejeitado"""

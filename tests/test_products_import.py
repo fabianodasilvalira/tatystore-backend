@@ -18,7 +18,7 @@ def test_import_template_download(client, admin_token, test_category):
     Teste: Download de template CSV com categorias da empresa
     """
     response = client.get(
-        "/api/v1/products/import/template",
+        "/api/v1/products-import/import/template",
         headers=get_auth_headers(admin_token)
     )
     
@@ -42,7 +42,7 @@ def test_import_valid_csv_success(client, admin_token, test_category):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -67,7 +67,7 @@ def test_import_products_are_inactive_by_default(client, admin_token, test_categ
     
     # Importar produto inativo
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -91,7 +91,7 @@ def test_import_missing_required_field_name(client, admin_token, test_category):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -113,7 +113,7 @@ def test_import_missing_required_field_brand(client, admin_token, test_category)
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -135,7 +135,7 @@ def test_import_missing_required_field_category(client, admin_token):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -157,7 +157,7 @@ def test_import_category_not_found(client, admin_token):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -180,7 +180,7 @@ def test_import_invalid_price_format(client, admin_token, test_category):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -202,7 +202,7 @@ def test_import_negative_price(client, admin_token, test_category):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -224,7 +224,7 @@ def test_import_accepts_comma_decimal_separator(client, admin_token, test_catego
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -245,7 +245,7 @@ def test_import_promotional_price_required_when_on_sale(client, admin_token, tes
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -267,7 +267,7 @@ def test_import_with_promotion_success(client, admin_token, test_category):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -288,7 +288,7 @@ def test_import_auto_generates_sku_when_empty(client, admin_token, test_category
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -306,7 +306,7 @@ def test_import_invalid_file_type(client, admin_token):
     Teste: Rejeita arquivo que não é CSV
     """
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.txt", io.BytesIO(b"not a csv"), "text/plain")}
     )
@@ -323,7 +323,7 @@ def test_import_file_too_large(client, admin_token):
     large_content = "a" * (6 * 1024 * 1024)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(large_content.encode('utf-8')), "text/csv")}
     )
@@ -339,7 +339,7 @@ def test_import_empty_csv(client, admin_token):
     csv_content = ""
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -355,7 +355,7 @@ def test_import_missing_header(client, admin_token):
     csv_content = "nome,marca,descricao\nProduto,Marca,Desc"
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -377,7 +377,7 @@ def test_import_mixed_success_and_errors(client, admin_token, test_category):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -401,7 +401,7 @@ def test_import_requires_admin_or_manager(client, seller_token, test_category):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(seller_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )
@@ -421,7 +421,7 @@ def test_import_isolates_by_company(client, admin_token, company2_token, test_ca
     
     # Importar para empresa 1
     response1 = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content_company1.encode('utf-8')), "text/csv")}
     )
@@ -453,7 +453,7 @@ def test_import_large_batch(client, admin_token, test_category):
     csv_content = create_csv_content(csv_rows)
     
     response = client.post(
-        "/api/v1/products/import",
+        "/api/v1/products-import/import",
         headers=get_auth_headers(admin_token),
         files={"file": ("test.csv", io.BytesIO(csv_content.encode('utf-8')), "text/csv")}
     )

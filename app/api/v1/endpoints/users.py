@@ -13,11 +13,25 @@ from app.core.deps import get_current_user, require_role
 from app.core.security import hash_password, verify_password, validate_password_strength
 from app.models.user import User
 from app.models.role import Role
-from app.schemas.user_schemas import UserCreate, UserUpdate, UserResponse, UserProfileUpdate
+from app.schemas.user_schemas import UserCreate, UserUpdate, UserResponse, UserProfileUpdate, RoleInfo
 from app.schemas.pagination import paginate
 from app.core.datetime_utils import get_now_fortaleza_naive
 
 router = APIRouter()
+
+
+@router.get("/roles/", response_model=List[RoleInfo], summary="Listar perfis disponíveis")
+async def list_roles(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """
+    **Listar Perfis Disponíveis**
+    
+    Retorna a lista de todos os perfis (roles) cadastrados no sistema.
+    """
+    roles = db.query(Role).all()
+    return roles
 
 
 @router.get("/me", response_model=UserResponse, summary="Obter meu perfil")

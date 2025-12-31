@@ -18,8 +18,8 @@ class InstallmentPaymentCreate(BaseModel):
     - Deve R$ 200, paga R$ 200 -> total
     - Deve R$ 200, paga R$ 100 depois mais R$ 100 -> dois pagamentos parciais
     """
-    installment_id: int = Field(
-        ...,  # Campo obrigatório
+    installment_id: Optional[int] = Field(
+        None,  # Torna opcional para compatibilidade com rotas que passam ID na URL
         description="ID da parcela a ser paga",
         examples=[38]
     )
