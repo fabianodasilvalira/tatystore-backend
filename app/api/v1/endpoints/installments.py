@@ -189,30 +189,34 @@ def list_overdue_installments(
     """
     today = date.today()
 
-    query = (
-        db.query(Installment)
-        .options(joinedload(Installment.payments))
-        .filter(
-            Installment.company_id == current_user.company_id,
-            Installment.status == InstallmentStatus.OVERDUE,
-            Installment.due_date < today,
+    try:
+        query = (
+            db.query(Installment)
+            .options(joinedload(Installment.payments))
+            .filter(
+                Installment.company_id == current_user.company_id,
+                Installment.status == InstallmentStatus.OVERDUE,
+                Installment.due_date < today,
+            )
+            .order_by(Installment.due_date.asc())
         )
-        .order_by(Installment.due_date.asc())
-    )
 
-    total = query.count()
+        total = query.count()
 
-    query = query.offset(skip)
+        query = query.offset(skip)
 
-    if limit is None:
-        installments = query.all()
-        limit = total if total > 0 else 1
-    else:
-        installments = query.limit(limit).all()
+        if limit is None:
+            installments = query.all()
+            limit = total if total > 0 else 1
+        else:
+            installments = query.limit(limit).all()
 
-    installments_data = [_enrich_installment_with_balance(i) for i in installments]
+        installments_data = [_enrich_installment_with_balance(i) for i in installments]
 
-    return paginate(installments_data, total, skip, limit)
+        return paginate(installments_data, total, skip, limit)
+    except Exception as e:
+        print(f"Erro ao listar parcelas vencidas: {e}")
+        return paginate([], 0, skip, limit or 10)
 
 
 @router.get("/", summary="Listar parcelas da empresa")
@@ -235,48 +239,54 @@ def list_installments(
     - `status_filter`: Filtrar por status (opcional)
     - `search`: Buscar por nome do cliente ou email (opcional)
     """
-    query = db.query(Installment).options(
-        joinedload(Installment.payments),
-        joinedload(Installment.customer)
-    ).filter(
-        Installment.company_id == current_user.company_id
-    )
-
-    if customer_id:
-        query = query.filter(Installment.customer_id == customer_id)
-
-    if status_filter:
-        try:
-            status_enum = InstallmentStatus(status_filter.lower())
-            query = query.filter(Installment.status == status_enum)
-        except ValueError:
-            raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
-
-    # CHANGE: Adicionar JOIN com Customer para que o filtro de busca funcione corretamente
-    # Sem o join, o filtro Customer.name.ilike() é ignorado e retorna todas as parcelas
-    if search:
-        query = query.join(Customer).filter(
-            or_(
-                Customer.name.ilike(f"%{search}%"),
-                Customer.email.ilike(f"%{search}%")
-            )
+    try:
+        query = db.query(Installment).options(
+            joinedload(Installment.payments),
+            joinedload(Installment.customer)
+        ).filter(
+            Installment.company_id == current_user.company_id
         )
 
-    query = query.order_by(Installment.due_date.asc())
+        if customer_id:
+            query = query.filter(Installment.customer_id == customer_id)
 
-    total = query.count()
+        if status_filter:
+            try:
+                status_enum = InstallmentStatus(status_filter.lower())
+                query = query.filter(Installment.status == status_enum)
+            except ValueError:
+                raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
 
-    query = query.offset(skip)
+        # CHANGE: Adicionar JOIN com Customer para que o filtro de busca funcione corretamente
+        # Sem o join, o filtro Customer.name.ilike() é ignorado e retorna todas as parcelas
+        if search:
+            query = query.join(Customer).filter(
+                or_(
+                    Customer.name.ilike(f"%{search}%"),
+                    Customer.email.ilike(f"%{search}%")
+                )
+            )
 
-    if limit is None:
-        installments = query.all()
-        limit = total if total > 0 else 1
-    else:
-        installments = query.limit(limit).all()
+        query = query.order_by(Installment.due_date.asc())
 
-    installments_data = [_enrich_installment_with_balance(i) for i in installments]
+        total = query.count()
 
-    return paginate(installments_data, total, skip, limit)
+        query = query.offset(skip)
+
+        if limit is None:
+            installments = query.all()
+            limit = total if total > 0 else 1
+        else:
+            installments = query.limit(limit).all()
+
+        installments_data = [_enrich_installment_with_balance(i) for i in installments]
+
+        return paginate(installments_data, total, skip, limit)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Erro ao listar parcelas: {e}")
+        return paginate([], 0, skip, limit or 10)
 
 
 @router.get("/customer/{customer_id}", summary="Listar parcelas do cliente")

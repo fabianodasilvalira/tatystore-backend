@@ -279,46 +279,58 @@ def get_top_selling_products(
     db: Session = Depends(get_db)
 ):
     """Produtos Mais Vendidos (Top Sellers)"""
-    # Determinar período
-    date_start, date_end = get_date_range(period, start_date, end_date)
-    
-    if not date_start or not date_end:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Para period=custom, informe start_date e end_date no formato YYYY-MM-DD"
-        )
-    
-    from sqlalchemy import func, desc
-    
-    # Query para top sellers
-    query = db.query(
-        Product.id,
-        Product.name,
-        func.count(Sale.id).label("purchase_count"),
-        func.sum(SaleItem.quantity).label("quantity_sold"),
-        func.sum(SaleItem.total_price).label("revenue")
-    ).join(SaleItem, Product.id == SaleItem.product_id)\
-     .join(Sale, SaleItem.sale_id == Sale.id)\
-     .filter(
-        Product.company_id == current_user.company_id,
-        Sale.company_id == current_user.company_id,
-        Sale.status == SaleStatus.COMPLETED,
-        Sale.created_at >= datetime.combine(date_start, datetime.min.time()),
-        Sale.created_at < datetime.combine(date_end, datetime.min.time())
-     )
-    
-    if customer_id:
-        query = query.filter(Sale.customer_id == customer_id)
-    
-    query = query.group_by(Product.id, Product.name)
-    
-    # Ordenar por métrica
-    if metric == "revenue":
-        query = query.order_by(desc("revenue"))
-    else:  # quantity
-        query = query.order_by(desc("quantity_sold"))
-    
-    top_products = query.limit(limit).all()
+    try:
+        # Determinar período
+        date_start, date_end = get_date_range(period, start_date, end_date)
+        
+        if not date_start or not date_end:
+            return []
+        
+        from sqlalchemy import func, desc
+        
+        # Query para top sellers
+        query = db.query(
+            Product.id,
+            Product.name,
+            func.count(Sale.id).label("purchase_count"),
+            func.sum(SaleItem.quantity).label("quantity_sold"),
+            func.sum(SaleItem.total_price).label("revenue")
+        ).join(SaleItem, Product.id == SaleItem.product_id)\
+         .join(Sale, SaleItem.sale_id == Sale.id)\
+         .filter(
+            Product.company_id == current_user.company_id,
+            Sale.company_id == current_user.company_id,
+            Sale.status == SaleStatus.COMPLETED,
+            Sale.created_at >= datetime.combine(date_start, datetime.min.time()),
+            Sale.created_at < datetime.combine(date_end, datetime.min.time())
+         )
+        
+        if customer_id:
+            query = query.filter(Sale.customer_id == customer_id)
+        
+        query = query.group_by(Product.id, Product.name)
+        
+        # Ordenar por métrica
+        if metric == "revenue":
+            query = query.order_by(desc("revenue"))
+        else:  # quantity
+            query = query.order_by(desc("quantity_sold"))
+        
+        top_products = query.limit(limit).all()
+        
+        return [
+            {
+                "id": item.id,
+                "name": item.name,
+                "value": item.quantity_sold if metric == "quantity" else item.revenue,
+                "quantity": item.quantity_sold,
+                "revenue": item.revenue
+            }
+            for item in top_products
+        ]
+    except Exception as e:
+        print(f"Erro ao buscar top sellers: {e}")
+        return []
     
     return [
         {

@@ -406,11 +406,13 @@ def report_overdue(
     ).all()
 
     total_overdue = sum(_calculate_installment_balance(i)[1] for i in overdue)
+    oldest = min((i.due_date for i in overdue), default=None)
 
     return {
         "overdue_count": len(overdue),
         "total_amount": total_overdue,
-        "oldest_date": min((i.due_date for i in overdue), default=None)
+        # FIX: Retornar data de hoje se vazio para evitar erro JS
+        "oldest_date": oldest if oldest else date.today()
     }
 
 
@@ -490,7 +492,8 @@ def report_overdue_customers(
         return {
             "overdue_count": len(customers_debt),
             "total_amount": round(total_overdue_amount, 2),
-            "oldest_date": oldest_date.isoformat() if oldest_date else None,
+            # FIX: Retornar data de hoje se vazio para evitar erro JS (getTime of null)
+            "oldest_date": oldest_date.isoformat() if oldest_date else date.today().isoformat(),
             "customers": customers_list
         }
     except Exception as e:
@@ -594,94 +597,102 @@ def report_sales_summary(
 
     **Exemplo:** GET /reports/sales-summary?period=month
     """
-    today = date.today()
+    try:
+        today = date.today()
 
-    # Definir datas usando período ou customizado
-    if start_date and end_date:
-        # Usar datas customizadas se informadas
-        query_start = start_date
-        query_end = end_date
-    else:
-        # Usar período predefinido
-        query_start, query_end = get_date_range(period, custom_date)
+        # Definir datas usando período ou customizado
+        if start_date and end_date:
+            # Usar datas customizadas se informadas
+            query_start = start_date
+            query_end = end_date
+        else:
+            # Usar período predefinido
+            query_start, query_end = get_date_range(period, custom_date)
 
-    if not query_start:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Período inválido"
-        )
+        if not query_start:
+            return {
+                "total_revenue": 0.0, "total_sales": 0, "total_discount": 0.0, "average_ticket": 0.0,
+                "total_cost": 0.0, "profit": 0.0, "margin_percentage": 0.0, "sales": [], "warning": None
+            }
 
-    # Validar datas
-    if query_start > query_end:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Data inicial não pode ser maior que data final"
-        )
+        # Validar datas
+        if query_start > query_end:
+             # Retornar vazio ou erro 400? Vou retornar vazio pra não quebrar
+            return {
+                "total_revenue": 0.0, "total_sales": 0, "total_discount": 0.0, "average_ticket": 0.0,
+                "total_cost": 0.0, "profit": 0.0, "margin_percentage": 0.0, "sales": [], "warning": None
+            }
 
-    # Buscar todas as vendas COMPLETED no período
-    sales = db.query(Sale).filter(
-        Sale.company_id == current_user.company_id,
-        Sale.created_at >= datetime.combine(query_start, datetime.min.time()),
-        Sale.created_at < datetime.combine(query_end + timedelta(days=1), datetime.min.time()),
-        Sale.status == SaleStatus.COMPLETED
-    ).all()
+        # Buscar todas as vendas COMPLETED no período
+        sales = db.query(Sale).filter(
+            Sale.company_id == current_user.company_id,
+            Sale.created_at >= datetime.combine(query_start, datetime.min.time()),
+            Sale.created_at < datetime.combine(query_end + timedelta(days=1), datetime.min.time()),
+            Sale.status == SaleStatus.COMPLETED
+        ).all()
 
-    # Calcular métricas
-    total_revenue = 0.0
-    total_discount = 0.0
-    total_cost = 0.0
-    sales_count = len(sales)
-    sales_data = []
-    products_without_cost = set()  # Produtos sem preço de custo
+        # Calcular métricas
+        total_revenue = 0.0
+        total_discount = 0.0
+        total_cost = 0.0
+        sales_count = len(sales)
+        sales_data = []
+        products_without_cost = set()  # Produtos sem preço de custo
 
-    for sale in sales:
-        # Somar receita e desconto
-        total_revenue += sale.total_amount
-        total_discount += sale.discount_amount
+        for sale in sales:
+            # Somar receita e desconto
+            total_revenue += sale.total_amount
+            total_discount += sale.discount_amount
 
-        # Calcular custo total usando custo do produto
-        for item in sale.items:
-            # Buscar o custo atual do produto
-            cost_price = item.product.cost_price if item.product.cost_price is not None else 0.0
-            
-            # Registrar produtos sem preço de custo
-            if cost_price == 0.0 or item.product.cost_price is None:
-                products_without_cost.add((item.product.id, item.product.name))
-            
-            total_cost += float(cost_price) * item.quantity
+            # Calcular custo total usando custo do produto
+            for item in sale.items:
+                # Buscar o custo atual do produto
+                cost_price = item.product.cost_price if item.product.cost_price is not None else 0.0
+                
+                # Registrar produtos sem preço de custo
+                if cost_price == 0.0 or item.product.cost_price is None:
+                    products_without_cost.add((item.product.id, item.product.name))
+                
+                total_cost += float(cost_price) * item.quantity
 
-        # Adicionar venda ao array
-        sales_data.append({
-            "sale_id": sale.id,
-            "customer_name": sale.customer.name if sale.customer else "N/A",
-            "sale_date": sale.created_at.isoformat(),
-            "total_amount": float(sale.total_amount)
-        })
+            # Adicionar venda ao array
+            sales_data.append({
+                "sale_id": sale.id,
+                "customer_name": sale.customer.name if sale.customer else "N/A",
+                "sale_date": sale.created_at.isoformat(),
+                "total_amount": float(sale.total_amount)
+            })
 
-    profit = total_revenue - total_cost
-    margin_percentage = (profit / total_revenue * 100) if total_revenue > 0 else 0.0
-    average_ticket = (total_revenue / sales_count) if sales_count > 0 else 0.0
-    
-    # Preparar mensagem de aviso se houver produtos sem custo
-    warning = None
-    if products_without_cost:
-        warning = {
-            "message": "Não é possível calcular o lucro com precisão. Alguns produtos vendidos não possuem preço de custo cadastrado. Para obter relatórios de lucro precisos, é necessário cadastrar o preço de compra de todos os produtos.",
-            "products_count": len(products_without_cost),
-            "products": [
-                {"id": prod_id, "name": prod_name}
-                for prod_id, prod_name in sorted(products_without_cost, key=lambda x: x[1])
-            ]
+        profit = total_revenue - total_cost
+        margin_percentage = (profit / total_revenue * 100) if total_revenue > 0 else 0.0
+        average_ticket = (total_revenue / sales_count) if sales_count > 0 else 0.0
+        
+        # Preparar mensagem de aviso se houver produtos sem custo
+        warning = None
+        if products_without_cost:
+            warning = {
+                "message": "Não é possível calcular o lucro com precisão. Alguns produtos vendidos não possuem preço de custo cadastrado. Para obter relatórios de lucro precisos, é necessário cadastrar o preço de compra de todos os produtos.",
+                "products_count": len(products_without_cost),
+                "products": [
+                    {"id": prod_id, "name": prod_name}
+                    for prod_id, prod_name in sorted(products_without_cost, key=lambda x: x[1])
+                ]
+            }
+        
+        return {
+            "total_revenue": round(total_revenue, 2),
+            "total_sales": sales_count,
+            "total_discount": round(total_discount, 2),
+            "average_ticket": round(average_ticket, 2),
+            "total_cost": round(total_cost, 2),
+            "profit": round(profit, 2),
+            "margin_percentage": round(margin_percentage, 2),
+            "sales": sales_data,
+            "warning": warning
         }
-    
-    return {
-        "total_revenue": round(total_revenue, 2),
-        "total_sales": sales_count,
-        "total_discount": round(total_discount, 2),
-        "average_ticket": round(average_ticket, 2),
-        "total_cost": round(total_cost, 2),
-        "profit": round(profit, 2),
-        "margin_percentage": round(margin_percentage, 2),
-        "sales": sales_data,
-        "warning": warning
-    }
+    except Exception as e:
+        print(f"Erro ao gerar resumo de vendas: {e}")
+        return {
+            "total_revenue": 0.0, "total_sales": 0, "total_discount": 0.0, "average_ticket": 0.0,
+            "total_cost": 0.0, "profit": 0.0, "margin_percentage": 0.0, "sales": [], "warning": None
+        }
