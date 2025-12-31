@@ -18,7 +18,8 @@ from app.api.v1.endpoints import (
     pix,
     public,
     cron,
-    categories
+    categories,
+    stock_movements
 )
 
 api_router = APIRouter()
@@ -34,6 +35,7 @@ api_router.include_router(customers.router, prefix="/customers", tags=["Clientes
 api_router.include_router(sales.router, prefix="/sales", tags=["Vendas"])
 api_router.include_router(installments.router, prefix="/installments", tags=["Parcelas"])
 api_router.include_router(installment_payments.router, prefix="/installment-payments", tags=["Pagamentos de Parcelas"])
+api_router.include_router(stock_movements.router, prefix="/stock-movements", tags=["Movimentações de Estoque"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Relatórios"])
 api_router.include_router(pix.router, prefix="/pix", tags=["PIX"])
 api_router.include_router(cron.router, prefix="/cron", tags=["Cron"])

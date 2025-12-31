@@ -2,19 +2,22 @@
 Endpoints de Vendas (v1)
 Suporta cash, credit e PIX com gestão automática de estoque e parcelas
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
 from typing import List, Optional
-from datetime import datetime, timedelta, date
+from datetime import date, timedelta
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import and_, or_, func, desc
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
-from app.models.sale import Sale, SaleItem, PaymentType, SaleStatus
+from app.models.sale import Sale, PaymentType, SaleStatus
+from app.models.sale_item import SaleItem
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.installment import Installment, InstallmentStatus
-from app.schemas.sale import SaleCreate, SaleResponse
+from app.models.stock_movement import StockMovement, MovementType
+from app.schemas.sale import SaleCreate, SaleResponse, SaleUpdate, SaleListResponse
 from app.schemas.pagination import paginate
 from app.api.v1.endpoints.installments import _calculate_installment_balance, _enrich_installment_with_balance
 
@@ -191,7 +194,24 @@ def create_sale(
             db.add(sale_item)
             
             # Debitar estoque
+            previous_stock = item_info["product"].stock_quantity
             item_info["product"].stock_quantity -= item_info["data"].quantity
+            new_stock = item_info["product"].stock_quantity
+            
+            # Registrar movimento de estoque para auditoria
+            stock_movement = StockMovement(
+                product_id=item_info["product"].id,
+                user_id=current_user.id,
+                company_id=current_user.company_id,
+                movement_type=MovementType.SALE,
+                quantity=-item_info["data"].quantity,
+                previous_stock=previous_stock,
+                new_stock=new_stock,
+                reference_type="sale",
+                reference_id=sale.id,
+                notes=f"Venda #{sale.id} - {item_info['data'].quantity} unidades"
+            )
+            db.add(stock_movement)
         
         # Gerar parcelas para crediário
         if sale_data.payment_type == PaymentType.CREDIT:
@@ -674,7 +694,24 @@ def cancel_sale(
     for product_id, quantity_to_restore in product_updates.items():
         product = db.query(Product).filter(Product.id == product_id).with_for_update().first()
         if product:
+            previous_stock = product.stock_quantity
             product.stock_quantity += quantity_to_restore
+            new_stock = product.stock_quantity
+            
+            # MELHORIA #6: Registrar movimento de estoque para auditoria
+            stock_movement = StockMovement(
+                product_id=product_id,
+                user_id=current_user.id,
+                company_id=current_user.company_id,
+                movement_type=MovementType.CANCEL,
+                quantity=quantity_to_restore,
+                previous_stock=previous_stock,
+                new_stock=new_stock,
+                reference_type="sale_cancel",
+                reference_id=sale_id,
+                notes=f"Cancelamento da venda #{sale_id} - {quantity_to_restore} unidades restauradas"
+            )
+            db.add(stock_movement)
     
     # Cancelar parcelas não pagas
     for installment in sale.installments:
