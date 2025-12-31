@@ -18,7 +18,7 @@ current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)
 sys.path.insert(0, parent_dir)
 
-from app.core.database import get_sync_db
+from app.core.database import get_db, SessionLocal
 from app.models.user import User
 from app.models.company import Company
 from app.models.customer import Customer
@@ -141,7 +141,7 @@ def test_cash_sale_without_complete_data():
     print("="*80)
     
     token = get_auth_token()
-    db = next(get_sync_db())
+    db = SessionLocal()
     
     try:
         # Criar cliente SEM CPF, telefone e endereço
@@ -201,7 +201,7 @@ def test_pix_sale_without_complete_data():
     print("="*80)
     
     token = get_auth_token()
-    db = next(get_sync_db())
+    db = SessionLocal()
     
     try:
         # Criar cliente SEM CPF, telefone e endereço
@@ -257,7 +257,7 @@ def test_credit_sale_without_cpf():
     print("="*80)
     
     token = get_auth_token()
-    db = next(get_sync_db())
+    db = SessionLocal()
     
     try:
         # Criar cliente SEM CPF (mas com telefone e endereço)
@@ -322,7 +322,7 @@ def test_credit_sale_without_phone():
     print("="*80)
     
     token = get_auth_token()
-    db = next(get_sync_db())
+    db = SessionLocal()
     
     try:
         # Criar cliente SEM telefone (mas com CPF e endereço)
@@ -386,7 +386,7 @@ def test_credit_sale_without_address():
     print("="*80)
     
     token = get_auth_token()
-    db = next(get_sync_db())
+    db = SessionLocal()
     
     try:
         # Criar cliente SEM endereço (mas com CPF e telefone)
@@ -450,7 +450,7 @@ def test_credit_sale_with_complete_data():
     print("="*80)
     
     token = get_auth_token()
-    db = next(get_sync_db())
+    db = SessionLocal()
     
     try:
         # Criar cliente COM todos os dados
