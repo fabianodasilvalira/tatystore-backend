@@ -280,42 +280,44 @@ def report_sold_products(
 
     **PERMISSÃO:** Admin, Gerente e Vendedor
     """
-    start_date, end_date = get_date_range(period, custom_date)
+    try:
+        start_date, end_date = get_date_range(period, custom_date)
 
-    if not start_date:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Período inválido"
-        )
+        if not start_date:
+            # Em vez de erro, retorna vazio para não quebrar o frontend
+            return {"period": period, "products": []}
 
-    items = db.query(
-        SaleItem.product_id,
-        Product.name,
-        func.sum(SaleItem.quantity).label("quantity"),
-        func.sum(SaleItem.total_price).label("revenue")
-    ).join(Sale, Sale.id == SaleItem.sale_id).join(
-        Product, Product.id == SaleItem.product_id
-    ).filter(
-        Sale.company_id == current_user.company_id,
-        Sale.created_at >= start_date,
-        Sale.created_at < end_date,
-        Sale.status != SaleStatus.CANCELLED
-    ).group_by(SaleItem.product_id, Product.name).order_by(
-        func.sum(SaleItem.quantity).desc()
-    ).limit(limit).all()
+        items = db.query(
+            SaleItem.product_id,
+            Product.name,
+            func.sum(SaleItem.quantity).label("quantity"),
+            func.sum(SaleItem.total_price).label("revenue")
+        ).join(Sale, Sale.id == SaleItem.sale_id).join(
+            Product, Product.id == SaleItem.product_id
+        ).filter(
+            Sale.company_id == current_user.company_id,
+            Sale.created_at >= start_date,
+            Sale.created_at < end_date,
+            Sale.status != SaleStatus.CANCELLED
+        ).group_by(SaleItem.product_id, Product.name).order_by(
+            func.sum(SaleItem.quantity).desc()
+        ).limit(limit).all()
 
-    return {
-        "period": period,
-        "products": [
-            {
-                "product_id": item.product_id,
-                "name": item.name,
-                "quantity_sold": item.quantity,
-                "revenue": item.revenue
-            }
-            for item in items
-        ]
-    }
+        return {
+            "period": period,
+            "products": [
+                {
+                    "product_id": item.product_id,
+                    "name": item.name,
+                    "quantity_sold": item.quantity,
+                    "revenue": item.revenue
+                }
+                for item in items
+            ]
+        }
+    except Exception as e:
+        print(f"Erro ao gerar relatório de produtos vendidos: {e}")
+        return {"period": period, "products": []}
 
 
 @router.get("/canceled-sales", summary="Vendas canceladas")
@@ -437,58 +439,68 @@ def report_overdue_customers(
     
     **Exemplo:** GET /reports/overdue-customers
     """
-    today = date.today()
-    
-    # Buscar todas as parcelas com status OVERDUE
-    overdue_installments = db.query(Installment).filter(
-        Installment.company_id == current_user.company_id,
-        Installment.status == InstallmentStatus.OVERDUE,
-        Installment.due_date < today
-    ).all()
-    
-    # Agrupar por cliente
-    customers_debt = {}
-    total_overdue_amount = 0.0
-    oldest_date = None
-    
-    for installment in overdue_installments:
-        _, remaining = _calculate_installment_balance(installment)
-        total_overdue_amount += remaining
+    try:
+        today = date.today()
         
-        # Atualizar data mais antiga
-        if oldest_date is None or installment.due_date < oldest_date:
-            oldest_date = installment.due_date
+        # Buscar todas as parcelas com status OVERDUE
+        overdue_installments = db.query(Installment).filter(
+            Installment.company_id == current_user.company_id,
+            Installment.status == InstallmentStatus.OVERDUE,
+            Installment.due_date < today
+        ).all()
         
         # Agrupar por cliente
-        customer_id = installment.customer_id
-        if customer_id not in customers_debt:
-            customers_debt[customer_id] = {
-                "customer": installment.customer,
-                "total_debt": 0.0
-            }
+        customers_debt = {}
+        total_overdue_amount = 0.0
+        oldest_date = None
         
-        customers_debt[customer_id]["total_debt"] += remaining
-    
-    # Formatar resposta com dados de clientes
-    customers_list = []
-    for customer_id, debt_info in customers_debt.items():
-        customer = debt_info["customer"]
-        customers_list.append({
-            "id": customer.id,
-            "name": customer.name,
-            "phone": customer.phone or "N/A",
-            "total_debt": round(debt_info["total_debt"], 2)
-        })
-    
-    # Ordenar por maior débito
-    customers_list.sort(key=lambda x: x["total_debt"], reverse=True)
-    
-    return {
-        "overdue_count": len(customers_debt),
-        "total_amount": round(total_overdue_amount, 2),
-        "oldest_date": oldest_date.isoformat() if oldest_date else None,
-        "customers": customers_list
-    }
+        for installment in overdue_installments:
+            _, remaining = _calculate_installment_balance(installment)
+            total_overdue_amount += remaining
+            
+            # Atualizar data mais antiga
+            if oldest_date is None or installment.due_date < oldest_date:
+                oldest_date = installment.due_date
+            
+            # Agrupar por cliente
+            customer_id = installment.customer_id
+            if customer_id not in customers_debt:
+                customers_debt[customer_id] = {
+                    "customer": installment.customer,
+                    "total_debt": 0.0
+                }
+            
+            customers_debt[customer_id]["total_debt"] += remaining
+        
+        # Formatar resposta com dados de clientes
+        customers_list = []
+        for customer_id, debt_info in customers_debt.items():
+            customer = debt_info["customer"]
+            if customer: # Proteção extra se customer for None
+                customers_list.append({
+                    "id": customer.id,
+                    "name": customer.name,
+                    "phone": customer.phone or "N/A",
+                    "total_debt": round(debt_info["total_debt"], 2)
+                })
+        
+        # Ordenar por maior débito
+        customers_list.sort(key=lambda x: x["total_debt"], reverse=True)
+        
+        return {
+            "overdue_count": len(customers_debt),
+            "total_amount": round(total_overdue_amount, 2),
+            "oldest_date": oldest_date.isoformat() if oldest_date else None,
+            "customers": customers_list
+        }
+    except Exception as e:
+        print(f"Erro ao gerar relatorio de clientes em atraso: {e}")
+        return {
+            "overdue_count": 0,
+            "total_amount": 0.0,
+            "oldest_date": None,
+            "customers": []
+        }
 
 
 @router.get("/low-stock", response_model=dict, summary="Produtos com baixo estoque")

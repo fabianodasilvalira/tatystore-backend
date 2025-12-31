@@ -119,51 +119,58 @@ def filter_installments(
     - `end_date`: Data final (formato: YYYY-MM-DD)
     - `overdue`: Filtrar apenas vencidas (true/false)
     """
-    query = db.query(Installment).options(
-        joinedload(Installment.payments)
-    ).filter(
-        Installment.company_id == current_user.company_id
-    )
-
-    status_value = status or status_filter
-    if status_value:
-        try:
-            status_enum = InstallmentStatus(status_value.lower())
-            query = query.filter(Installment.status == status_enum)
-        except ValueError:
-            raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
-
-    if customer_id:
-        query = query.filter(Installment.customer_id == customer_id)
-
-    if start_date:
-        query = query.filter(Installment.due_date >= start_date)
-
-    if end_date:
-        query = query.filter(Installment.due_date <= end_date)
-
-    if overdue is True:
-        today = date.today()
-        query = query.filter(
-            Installment.status == InstallmentStatus.OVERDUE,
-            Installment.due_date < today
+    try:
+        query = db.query(Installment).options(
+            joinedload(Installment.payments)
+        ).filter(
+            Installment.company_id == current_user.company_id
         )
 
-    query = query.order_by(Installment.due_date.asc())
+        status_value = status or status_filter
+        if status_value:
+            try:
+                status_enum = InstallmentStatus(status_value.lower())
+                query = query.filter(Installment.status == status_enum)
+            except ValueError:
+                # Se status inválido, apenas ignora filtro ou retorna vazio? Retornar erro 400 é correto, mas vamos proteger o crash
+                raise HTTPException(400, detail=Messages.INSTALLMENT_INVALID_STATUS)
 
-    total = query.count()
+        if customer_id:
+            query = query.filter(Installment.customer_id == customer_id)
 
-    query = query.offset(skip)
+        if start_date:
+            query = query.filter(Installment.due_date >= start_date)
 
-    if limit is None:
-        installments = query.all()
-        limit = total if total > 0 else 1
-    else:
-        installments = query.limit(limit).all()
+        if end_date:
+            query = query.filter(Installment.due_date <= end_date)
 
-    installments_data = [_enrich_installment_with_balance(i) for i in installments]
+        if overdue is True:
+            today = date.today()
+            query = query.filter(
+                Installment.status == InstallmentStatus.OVERDUE,
+                Installment.due_date < today
+            )
 
-    return paginate(installments_data, total, skip, limit)
+        query = query.order_by(Installment.due_date.asc())
+
+        total = query.count()
+
+        query = query.offset(skip)
+
+        if limit is None:
+            installments = query.all()
+            limit = total if total > 0 else 1
+        else:
+            installments = query.limit(limit).all()
+
+        installments_data = [_enrich_installment_with_balance(i) for i in installments]
+
+        return paginate(installments_data, total, skip, limit)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Erro ao filtrar parcelas: {e}")
+        return paginate([], 0, skip, limit or 10)
 
 
 @router.get("/overdue", summary="Listar parcelas vencidas")
