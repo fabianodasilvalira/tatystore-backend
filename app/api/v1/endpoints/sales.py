@@ -11,13 +11,12 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from app.core.database import get_db
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
-from app.models.sale import Sale, PaymentType, SaleStatus
-from app.models.sale_item import SaleItem
+from app.models.sale import Sale, PaymentType, SaleStatus, SaleItem
 from app.models.product import Product
 from app.models.customer import Customer
 from app.models.installment import Installment, InstallmentStatus
 from app.models.stock_movement import StockMovement, MovementType
-from app.schemas.sale import SaleCreate, SaleResponse, SaleUpdate, SaleListResponse
+from app.schemas.sale import SaleCreate, SaleResponse
 from app.schemas.pagination import paginate
 from app.api.v1.endpoints.installments import _calculate_installment_balance, _enrich_installment_with_balance
 
