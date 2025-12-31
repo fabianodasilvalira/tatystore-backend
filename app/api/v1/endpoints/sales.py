@@ -98,7 +98,8 @@ def create_sale(
             product = db.query(Product).filter(
                 Product.id == item_data.product_id,
                 Product.company_id == current_user.company_id
-            ).with_for_update().first()\n            
+            ).with_for_update().first()
+            
             if not product:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
