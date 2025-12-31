@@ -15,7 +15,7 @@ from app.models.company import Company
 from app.models.customer import Customer
 from app.models.product import Product
 from app.models.user import User
-from app.schemas.sale import SaleCreate, SaleItemIn, PaymentMethod
+from app.schemas.sale import SaleCreate, SaleItemIn
 from app.api.v1.endpoints.sales import create_sale
 
 
@@ -195,7 +195,7 @@ def test_cash_sale_with_incomplete_customer(db_session, test_user, test_product,
                 unit_price=100.0
             )
         ],
-        payment_type=PaymentMethod.CASH,
+        payment_type=" cash\,
         discount_amount=0
     )
     
@@ -204,7 +204,7 @@ def test_cash_sale_with_incomplete_customer(db_session, test_user, test_product,
     
     assert sale is not None
     assert sale.customer_id == customer_incomplete.id
-    assert sale.payment_type == PaymentMethod.CASH
+    assert sale.payment_type == " cash\
 
 
 # ============================================================================
@@ -224,7 +224,7 @@ def test_pix_sale_with_incomplete_customer(db_session, test_user, test_product, 
                 unit_price=100.0
             )
         ],
-        payment_type=PaymentMethod.PIX,
+        payment_type=\pix\,
         discount_amount=0
     )
     
@@ -233,7 +233,7 @@ def test_pix_sale_with_incomplete_customer(db_session, test_user, test_product, 
     
     assert sale is not None
     assert sale.customer_id == customer_incomplete.id
-    assert sale.payment_type == PaymentMethod.PIX
+    assert sale.payment_type == \pix\
 
 
 # ============================================================================
@@ -253,7 +253,7 @@ def test_credit_sale_without_cpf_should_fail(db_session, test_user, test_product
                 unit_price=100.0
             )
         ],
-        payment_type=PaymentMethod.CREDIT,
+        payment_type=\credit\,
         installments_count=3,
         first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
@@ -280,7 +280,7 @@ def test_credit_sale_without_phone_should_fail(db_session, test_user, test_produ
                 unit_price=100.0
             )
         ],
-        payment_type=PaymentMethod.CREDIT,
+        payment_type=\credit\,
         installments_count=3,
         first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
@@ -307,7 +307,7 @@ def test_credit_sale_without_address_should_fail(db_session, test_user, test_pro
                 unit_price=100.0
             )
         ],
-        payment_type=PaymentMethod.CREDIT,
+        payment_type=\credit\,
         installments_count=3,
         first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
@@ -334,7 +334,7 @@ def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, t
                 unit_price=100.0
             )
         ],
-        payment_type=PaymentMethod.CREDIT,
+        payment_type=\credit\,
         installments_count=3,
         first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
@@ -345,7 +345,7 @@ def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, t
     
     assert sale is not None
     assert sale.customer_id == customer_complete.id
-    assert sale.payment_type == PaymentMethod.CREDIT
+    assert sale.payment_type == \credit\
     assert sale.total_amount == 200.0
 
 
@@ -362,7 +362,7 @@ def test_credit_sale_missing_multiple_fields(db_session, test_user, test_product
                 unit_price=100.0
             )
         ],
-        payment_type=PaymentMethod.CREDIT,
+        payment_type=\credit\,
         installments_count=3,
         first_due_date=datetime.now() + timedelta(days=30),
         discount_amount=0
