@@ -229,7 +229,17 @@ def create_sale(
                 else:
                     amount = base_amount
                 
-                due_date = date.today() + timedelta(days=30 * (i + 1))
+                # MELHORIA #8: Data de vencimento personalizada
+                if sale_data.first_due_date:
+                    # Se for a primeira parcela (i=0), usa a data exata
+                    # Se for as seguintes, soma 30 dias * i a partir da primeira data
+                    if i == 0:
+                        due_date = sale_data.first_due_date
+                    else:
+                        due_date = sale_data.first_due_date + timedelta(days=30 * i)
+                else:
+                    # Comportamento padrão: 30 dias a partir de hoje
+                    due_date = date.today() + timedelta(days=30 * (i + 1))
                 
                 installment = Installment(
                     sale_id=sale.id,
@@ -334,6 +344,7 @@ def list_sales(
     period: Optional[str] = Query(None, description="Período: today, week, month, custom"),
     start_date: Optional[date] = Query(None, description="Data inicial (para period=custom)"),
     end_date: Optional[date] = Query(None, description="Data final (para period=custom)"),
+    show_inactive_customers: bool = Query(False, description="Incluir vendas de clientes inativos"),
     current_user: User = Depends(require_role("admin", "gerente", "vendedor")),
     db: Session = Depends(get_db)
 ):
@@ -341,6 +352,10 @@ def list_sales(
     query = db.query(Sale).join(Customer, Sale.customer_id == Customer.id).filter(
         Sale.company_id == current_user.company_id
     )
+    
+    # MELHORIA #11: Filtrar clientes inativos por padrão
+    if not show_inactive_customers and not customer_id:
+        query = query.filter(Customer.is_active == True)
     
     if search:
         search_term = f"%{search}%"

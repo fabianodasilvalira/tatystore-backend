@@ -18,7 +18,10 @@ engine = create_engine(
     settings.DATABASE_URL,
     connect_args={
         "check_same_thread": False
-    } if "sqlite" in settings.DATABASE_URL else {},
+    } if "sqlite" in settings.DATABASE_URL else {
+        # MELHORIA #12: Timeout de transação (30 segundos)
+        "options": "-c statement_timeout=30000"
+    },
     poolclass=NullPool if "localhost" not in settings.DATABASE_URL else None,
     echo=False
 )
