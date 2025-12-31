@@ -88,11 +88,17 @@ def create_sale(
                     detail="Quantidade do item deve ser maior que zero"
                 )
             
+            # CORREÇÃO #4: Validar preço de venda
+            if item_data.unit_price <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Preço de venda deve ser maior que zero"
+                )
+            
             product = db.query(Product).filter(
                 Product.id == item_data.product_id,
                 Product.company_id == current_user.company_id
-            ).with_for_update().first()
-            
+            ).with_for_update().first()\n            
             if not product:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -148,11 +154,11 @@ def create_sale(
         
         total_amount = subtotal - sale_data.discount_amount
         
-        # Validar que total não fica negativo
-        if total_amount < 0:
+        # CORREÇÃO #3: Validar que total não fica negativo OU ZERO
+        if total_amount <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Valor total não pode ser negativo"
+                detail="Valor total deve ser maior que zero"
             )
         
         # Criar venda
@@ -644,6 +650,16 @@ def cancel_sale(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Venda já foi cancelada"
+        )
+    
+    # CORREÇÃO #2: Verificar se há parcelas pagas
+    paid_installments = [i for i in sale.installments if i.status == InstallmentStatus.PAID]
+    if paid_installments:
+        total_paid = sum(i.amount for i in paid_installments)
+        paid_count = len(paid_installments)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Não é possível cancelar venda com {paid_count} parcela(s) já paga(s) (R$ {total_paid:.2f} recebidos). Realize estorno manual antes de cancelar."
         )
     
     product_updates = {}

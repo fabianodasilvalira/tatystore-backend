@@ -2,7 +2,7 @@
 Modelo Product - Produtos
 Cada produto pertence a uma empresa
 """
-from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, func
+from sqlalchemy import Column, Integer, String, Float, Boolean, ForeignKey, DateTime, func, CheckConstraint
 from sqlalchemy.orm import relationship
 
 from app.core.database import Base
@@ -10,6 +10,11 @@ from app.core.database import Base
 
 class Product(Base):
     __tablename__ = "products"
+    
+    __table_args__ = (
+        CheckConstraint('stock_quantity >= 0', name='check_stock_non_negative'),
+        CheckConstraint('min_stock >= 0', name='check_min_stock_non_negative'),
+    )
     
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), nullable=False)
