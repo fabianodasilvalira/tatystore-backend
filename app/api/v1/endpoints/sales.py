@@ -9,6 +9,7 @@ from sqlalchemy import and_, or_, func, desc
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.core.database import get_db
+print("DEBUG: LOADING SALES MODULE v2")
 from app.core.deps import get_current_user, require_role
 from app.models.user import User
 from app.models.sale import Sale, PaymentType, SaleStatus, SaleItem
