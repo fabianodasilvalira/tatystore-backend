@@ -1,0 +1,818 @@
+﻿docker-compose : time="2025-12-31T17:13:18-03:00" level=warning 
+msg="C:\\Sistemas_Fabiano\\tatyStore\\tatystore-backend\\docker-compose.yml: the 
+attribute `version` is obsolete, it will be ignored, please remove it to avoid 
+potential confusion"
+No linha:1 caractere:1
++ docker-compose exec -T api pytest tests/test_credit_validation_tdd.py ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (time="2025-12-3...tial 
+confusion":String    ) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+============================= test session starts ==============================
+platform linux -- Python 3.11.14, pytest-7.4.3, pluggy-1.6.0 -- /usr/local/bin/python3.11
+cachedir: .pytest_cache
+rootdir: /app
+configfile: pytest.ini
+plugins: cov-4.1.0, asyncio-0.21.1, anyio-4.12.0
+asyncio: mode=Mode.STRICT
+collecting ... collected 7 items
+
+tests/test_credit_validation_tdd.py::test_cash_sale_with_incomplete_customer ERROR [ 14%]
+tests/test_credit_validation_tdd.py::test_pix_sale_with_incomplete_customer ERROR [ 28%]
+tests/test_credit_validation_tdd.py::test_credit_sale_without_cpf_should_fail ERROR [ 42%]
+tests/test_credit_validation_tdd.py::test_credit_sale_without_phone_should_fail ERROR [ 57%]
+tests/test_credit_validation_tdd.py::test_credit_sale_without_address_should_fail ERROR [ 71%]
+tests/test_credit_validation_tdd.py::test_credit_sale_with_complete_customer_should_pass ERROR [ 85%]
+tests/test_credit_validation_tdd.py::test_credit_sale_missing_multiple_fields ERROR [100%]
+
+==================================== ERRORS ====================================
+__________ ERROR at setup of test_cash_sale_with_incomplete_customer ___________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x71b0171118d0>
+test_company = <app.models.company.Company object at 0x71b0168e6790>
+
+    @pytest.fixture
+    def test_user(db_session, test_company):
+        """Cria um usu├írio de teste"""
+>       user = User(
+            name="Admin Teste",
+            email="admin@teste.com",
+            hashed_password="hashed",
+            role="admin",
+            company_id=test_company.id,
+            is_active=True
+        )
+
+tests/test_credit_validation_tdd.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b017f34c10>
+kwargs = {'company_id': 53, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+new_state = <sqlalchemy.orm.state.InstanceState object at 0x71b0168c3a10>
+
+>   ???
+
+<string>:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b0168c3a10>, <app.models.user.User object at 0x71b017f34c10>)
+kwargs = {'company_id': 53, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b0168c3a10>
+instance = <app.models.user.User object at 0x71b017f34c10>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+            manager.original_init(*mixed[1:], **kwargs)
+        except:
+>           with util.safe_reraise():
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.util.langhelpers.safe_reraise object at 0x71b0167abdf0>
+type_ = None, value = None, traceback = None
+
+    def __exit__(
+        self,
+        type_: Optional[Type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
+    ) -> NoReturn:
+        assert self._exc_info is not None
+        # see #2703 for notes
+        if type_ is None:
+            exc_type, exc_value, exc_tb = self._exc_info
+            assert exc_value is not None
+            self._exc_info = None  # remove potential circular references
+>           raise exc_value.with_traceback(exc_tb)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b0168c3a10>, <app.models.user.User object at 0x71b017f34c10>)
+kwargs = {'company_id': 53, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b0168c3a10>
+instance = <app.models.user.User object at 0x71b017f34c10>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+>           manager.original_init(*mixed[1:], **kwargs)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:569: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b017f34c10>
+kwargs = {'company_id': 53, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+cls_ = <class 'app.models.user.User'>, k = 'hashed_password'
+
+    def _declarative_constructor(self: Any, **kwargs: Any) -> None:
+        """A simple constructor that allows initialization from kwargs.
+    
+        Sets attributes on the constructed instance using the names and
+        values in ``kwargs``.
+    
+        Only keys that are present as
+        attributes of the instance's class are allowed. These could be,
+        for example, any mapped columns or relationships.
+        """
+        cls_ = type(self)
+        for k in kwargs:
+            if not hasattr(cls_, k):
+>               raise TypeError(
+                    "%r is an invalid keyword argument for %s" % (k, cls_.__name__)
+                )
+E               TypeError: 'hashed_password' is an invalid keyword argument for User
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/decl_base.py:2177: TypeError
+___________ ERROR at setup of test_pix_sale_with_incomplete_customer ___________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x71b01697ffd0>
+test_company = <app.models.company.Company object at 0x71b0166ad050>
+
+    @pytest.fixture
+    def test_user(db_session, test_company):
+        """Cria um usu├írio de teste"""
+>       user = User(
+            name="Admin Teste",
+            email="admin@teste.com",
+            hashed_password="hashed",
+            role="admin",
+            company_id=test_company.id,
+            is_active=True
+        )
+
+tests/test_credit_validation_tdd.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b01689e290>
+kwargs = {'company_id': 54, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+new_state = <sqlalchemy.orm.state.InstanceState object at 0x71b016601d30>
+
+>   ???
+
+<string>:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b016601d30>, <app.models.user.User object at 0x71b01689e290>)
+kwargs = {'company_id': 54, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b016601d30>
+instance = <app.models.user.User object at 0x71b01689e290>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+            manager.original_init(*mixed[1:], **kwargs)
+        except:
+>           with util.safe_reraise():
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.util.langhelpers.safe_reraise object at 0x71b0167f6da0>
+type_ = None, value = None, traceback = None
+
+    def __exit__(
+        self,
+        type_: Optional[Type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
+    ) -> NoReturn:
+        assert self._exc_info is not None
+        # see #2703 for notes
+        if type_ is None:
+            exc_type, exc_value, exc_tb = self._exc_info
+            assert exc_value is not None
+            self._exc_info = None  # remove potential circular references
+>           raise exc_value.with_traceback(exc_tb)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b016601d30>, <app.models.user.User object at 0x71b01689e290>)
+kwargs = {'company_id': 54, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b016601d30>
+instance = <app.models.user.User object at 0x71b01689e290>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+>           manager.original_init(*mixed[1:], **kwargs)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:569: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b01689e290>
+kwargs = {'company_id': 54, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+cls_ = <class 'app.models.user.User'>, k = 'hashed_password'
+
+    def _declarative_constructor(self: Any, **kwargs: Any) -> None:
+        """A simple constructor that allows initialization from kwargs.
+    
+        Sets attributes on the constructed instance using the names and
+        values in ``kwargs``.
+    
+        Only keys that are present as
+        attributes of the instance's class are allowed. These could be,
+        for example, any mapped columns or relationships.
+        """
+        cls_ = type(self)
+        for k in kwargs:
+            if not hasattr(cls_, k):
+>               raise TypeError(
+                    "%r is an invalid keyword argument for %s" % (k, cls_.__name__)
+                )
+E               TypeError: 'hashed_password' is an invalid keyword argument for User
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/decl_base.py:2177: TypeError
+__________ ERROR at setup of test_credit_sale_without_cpf_should_fail __________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x71b017f32250>
+test_company = <app.models.company.Company object at 0x71b016a6ff10>
+
+    @pytest.fixture
+    def test_user(db_session, test_company):
+        """Cria um usu├írio de teste"""
+>       user = User(
+            name="Admin Teste",
+            email="admin@teste.com",
+            hashed_password="hashed",
+            role="admin",
+            company_id=test_company.id,
+            is_active=True
+        )
+
+tests/test_credit_validation_tdd.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b016de2090>
+kwargs = {'company_id': 55, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+new_state = <sqlalchemy.orm.state.InstanceState object at 0x71b017f40dd0>
+
+>   ???
+
+<string>:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b017f40dd0>, <app.models.user.User object at 0x71b016de2090>)
+kwargs = {'company_id': 55, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b017f40dd0>
+instance = <app.models.user.User object at 0x71b016de2090>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+            manager.original_init(*mixed[1:], **kwargs)
+        except:
+>           with util.safe_reraise():
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.util.langhelpers.safe_reraise object at 0x71b0167f77c0>
+type_ = None, value = None, traceback = None
+
+    def __exit__(
+        self,
+        type_: Optional[Type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
+    ) -> NoReturn:
+        assert self._exc_info is not None
+        # see #2703 for notes
+        if type_ is None:
+            exc_type, exc_value, exc_tb = self._exc_info
+            assert exc_value is not None
+            self._exc_info = None  # remove potential circular references
+>           raise exc_value.with_traceback(exc_tb)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b017f40dd0>, <app.models.user.User object at 0x71b016de2090>)
+kwargs = {'company_id': 55, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b017f40dd0>
+instance = <app.models.user.User object at 0x71b016de2090>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+>           manager.original_init(*mixed[1:], **kwargs)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:569: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b016de2090>
+kwargs = {'company_id': 55, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+cls_ = <class 'app.models.user.User'>, k = 'hashed_password'
+
+    def _declarative_constructor(self: Any, **kwargs: Any) -> None:
+        """A simple constructor that allows initialization from kwargs.
+    
+        Sets attributes on the constructed instance using the names and
+        values in ``kwargs``.
+    
+        Only keys that are present as
+        attributes of the instance's class are allowed. These could be,
+        for example, any mapped columns or relationships.
+        """
+        cls_ = type(self)
+        for k in kwargs:
+            if not hasattr(cls_, k):
+>               raise TypeError(
+                    "%r is an invalid keyword argument for %s" % (k, cls_.__name__)
+                )
+E               TypeError: 'hashed_password' is an invalid keyword argument for User
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/decl_base.py:2177: TypeError
+_________ ERROR at setup of test_credit_sale_without_phone_should_fail _________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x71b0166aca90>
+test_company = <app.models.company.Company object at 0x71b0166ace10>
+
+    @pytest.fixture
+    def test_user(db_session, test_company):
+        """Cria um usu├írio de teste"""
+>       user = User(
+            name="Admin Teste",
+            email="admin@teste.com",
+            hashed_password="hashed",
+            role="admin",
+            company_id=test_company.id,
+            is_active=True
+        )
+
+tests/test_credit_validation_tdd.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b0166ae350>
+kwargs = {'company_id': 56, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+new_state = <sqlalchemy.orm.state.InstanceState object at 0x71b01698b350>
+
+>   ???
+
+<string>:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b01698b350>, <app.models.user.User object at 0x71b0166ae350>)
+kwargs = {'company_id': 56, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b01698b350>
+instance = <app.models.user.User object at 0x71b0166ae350>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+            manager.original_init(*mixed[1:], **kwargs)
+        except:
+>           with util.safe_reraise():
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.util.langhelpers.safe_reraise object at 0x71b0167f6b60>
+type_ = None, value = None, traceback = None
+
+    def __exit__(
+        self,
+        type_: Optional[Type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
+    ) -> NoReturn:
+        assert self._exc_info is not None
+        # see #2703 for notes
+        if type_ is None:
+            exc_type, exc_value, exc_tb = self._exc_info
+            assert exc_value is not None
+            self._exc_info = None  # remove potential circular references
+>           raise exc_value.with_traceback(exc_tb)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b01698b350>, <app.models.user.User object at 0x71b0166ae350>)
+kwargs = {'company_id': 56, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b01698b350>
+instance = <app.models.user.User object at 0x71b0166ae350>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+>           manager.original_init(*mixed[1:], **kwargs)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:569: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b0166ae350>
+kwargs = {'company_id': 56, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+cls_ = <class 'app.models.user.User'>, k = 'hashed_password'
+
+    def _declarative_constructor(self: Any, **kwargs: Any) -> None:
+        """A simple constructor that allows initialization from kwargs.
+    
+        Sets attributes on the constructed instance using the names and
+        values in ``kwargs``.
+    
+        Only keys that are present as
+        attributes of the instance's class are allowed. These could be,
+        for example, any mapped columns or relationships.
+        """
+        cls_ = type(self)
+        for k in kwargs:
+            if not hasattr(cls_, k):
+>               raise TypeError(
+                    "%r is an invalid keyword argument for %s" % (k, cls_.__name__)
+                )
+E               TypeError: 'hashed_password' is an invalid keyword argument for User
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/decl_base.py:2177: TypeError
+________ ERROR at setup of test_credit_sale_without_address_should_fail ________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x71b016863d90>
+test_company = <app.models.company.Company object at 0x71b016861d50>
+
+    @pytest.fixture
+    def test_user(db_session, test_company):
+        """Cria um usu├írio de teste"""
+>       user = User(
+            name="Admin Teste",
+            email="admin@teste.com",
+            hashed_password="hashed",
+            role="admin",
+            company_id=test_company.id,
+            is_active=True
+        )
+
+tests/test_credit_validation_tdd.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b0165d42d0>
+kwargs = {'company_id': 57, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+new_state = <sqlalchemy.orm.state.InstanceState object at 0x71b0165eb890>
+
+>   ???
+
+<string>:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b0165eb890>, <app.models.user.User object at 0x71b0165d42d0>)
+kwargs = {'company_id': 57, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b0165eb890>
+instance = <app.models.user.User object at 0x71b0165d42d0>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+            manager.original_init(*mixed[1:], **kwargs)
+        except:
+>           with util.safe_reraise():
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.util.langhelpers.safe_reraise object at 0x71b0168687c0>
+type_ = None, value = None, traceback = None
+
+    def __exit__(
+        self,
+        type_: Optional[Type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
+    ) -> NoReturn:
+        assert self._exc_info is not None
+        # see #2703 for notes
+        if type_ is None:
+            exc_type, exc_value, exc_tb = self._exc_info
+            assert exc_value is not None
+            self._exc_info = None  # remove potential circular references
+>           raise exc_value.with_traceback(exc_tb)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b0165eb890>, <app.models.user.User object at 0x71b0165d42d0>)
+kwargs = {'company_id': 57, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b0165eb890>
+instance = <app.models.user.User object at 0x71b0165d42d0>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+>           manager.original_init(*mixed[1:], **kwargs)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:569: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b0165d42d0>
+kwargs = {'company_id': 57, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+cls_ = <class 'app.models.user.User'>, k = 'hashed_password'
+
+    def _declarative_constructor(self: Any, **kwargs: Any) -> None:
+        """A simple constructor that allows initialization from kwargs.
+    
+        Sets attributes on the constructed instance using the names and
+        values in ``kwargs``.
+    
+        Only keys that are present as
+        attributes of the instance's class are allowed. These could be,
+        for example, any mapped columns or relationships.
+        """
+        cls_ = type(self)
+        for k in kwargs:
+            if not hasattr(cls_, k):
+>               raise TypeError(
+                    "%r is an invalid keyword argument for %s" % (k, cls_.__name__)
+                )
+E               TypeError: 'hashed_password' is an invalid keyword argument for User
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/decl_base.py:2177: TypeError
+____ ERROR at setup of test_credit_sale_with_complete_customer_should_pass _____
+
+db_session = <sqlalchemy.orm.session.Session object at 0x71b016881210>
+test_company = <app.models.company.Company object at 0x71b016881890>
+
+    @pytest.fixture
+    def test_user(db_session, test_company):
+        """Cria um usu├írio de teste"""
+>       user = User(
+            name="Admin Teste",
+            email="admin@teste.com",
+            hashed_password="hashed",
+            role="admin",
+            company_id=test_company.id,
+            is_active=True
+        )
+
+tests/test_credit_validation_tdd.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b016881650>
+kwargs = {'company_id': 58, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+new_state = <sqlalchemy.orm.state.InstanceState object at 0x71b0165e9f70>
+
+>   ???
+
+<string>:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b0165e9f70>, <app.models.user.User object at 0x71b016881650>)
+kwargs = {'company_id': 58, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b0165e9f70>
+instance = <app.models.user.User object at 0x71b016881650>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+            manager.original_init(*mixed[1:], **kwargs)
+        except:
+>           with util.safe_reraise():
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.util.langhelpers.safe_reraise object at 0x71b0168519f0>
+type_ = None, value = None, traceback = None
+
+    def __exit__(
+        self,
+        type_: Optional[Type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
+    ) -> NoReturn:
+        assert self._exc_info is not None
+        # see #2703 for notes
+        if type_ is None:
+            exc_type, exc_value, exc_tb = self._exc_info
+            assert exc_value is not None
+            self._exc_info = None  # remove potential circular references
+>           raise exc_value.with_traceback(exc_tb)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b0165e9f70>, <app.models.user.User object at 0x71b016881650>)
+kwargs = {'company_id': 58, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b0165e9f70>
+instance = <app.models.user.User object at 0x71b016881650>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+>           manager.original_init(*mixed[1:], **kwargs)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:569: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b016881650>
+kwargs = {'company_id': 58, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+cls_ = <class 'app.models.user.User'>, k = 'hashed_password'
+
+    def _declarative_constructor(self: Any, **kwargs: Any) -> None:
+        """A simple constructor that allows initialization from kwargs.
+    
+        Sets attributes on the constructed instance using the names and
+        values in ``kwargs``.
+    
+        Only keys that are present as
+        attributes of the instance's class are allowed. These could be,
+        for example, any mapped columns or relationships.
+        """
+        cls_ = type(self)
+        for k in kwargs:
+            if not hasattr(cls_, k):
+>               raise TypeError(
+                    "%r is an invalid keyword argument for %s" % (k, cls_.__name__)
+                )
+E               TypeError: 'hashed_password' is an invalid keyword argument for User
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/decl_base.py:2177: TypeError
+__________ ERROR at setup of test_credit_sale_missing_multiple_fields __________
+
+db_session = <sqlalchemy.orm.session.Session object at 0x71b01683aa90>
+test_company = <app.models.company.Company object at 0x71b016839190>
+
+    @pytest.fixture
+    def test_user(db_session, test_company):
+        """Cria um usu├írio de teste"""
+>       user = User(
+            name="Admin Teste",
+            email="admin@teste.com",
+            hashed_password="hashed",
+            role="admin",
+            company_id=test_company.id,
+            is_active=True
+        )
+
+tests/test_credit_validation_tdd.py:64: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b01683af90>
+kwargs = {'company_id': 59, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+new_state = <sqlalchemy.orm.state.InstanceState object at 0x71b01690ea50>
+
+>   ???
+
+<string>:4: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b01690ea50>, <app.models.user.User object at 0x71b01683af90>)
+kwargs = {'company_id': 59, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b01690ea50>
+instance = <app.models.user.User object at 0x71b01683af90>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+            manager.original_init(*mixed[1:], **kwargs)
+        except:
+>           with util.safe_reraise():
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:571: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <sqlalchemy.util.langhelpers.safe_reraise object at 0x71b016868910>
+type_ = None, value = None, traceback = None
+
+    def __exit__(
+        self,
+        type_: Optional[Type[BaseException]],
+        value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
+    ) -> NoReturn:
+        assert self._exc_info is not None
+        # see #2703 for notes
+        if type_ is None:
+            exc_type, exc_value, exc_tb = self._exc_info
+            assert exc_value is not None
+            self._exc_info = None  # remove potential circular references
+>           raise exc_value.with_traceback(exc_tb)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/util/langhelpers.py:146: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+mixed = (<sqlalchemy.orm.state.InstanceState object at 0x71b01690ea50>, <app.models.user.User object at 0x71b01683af90>)
+kwargs = {'company_id': 59, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+self = <sqlalchemy.orm.state.InstanceState object at 0x71b01690ea50>
+instance = <app.models.user.User object at 0x71b01683af90>, args = ()
+manager = <ClassManager of <class 'app.models.user.User'> at 71b018f1e210>
+
+    def _initialize_instance(*mixed: Any, **kwargs: Any) -> None:
+        self, instance, args = mixed[0], mixed[1], mixed[2:]  # noqa
+        manager = self.manager
+    
+        manager.dispatch.init(self, args, kwargs)
+    
+        try:
+>           manager.original_init(*mixed[1:], **kwargs)
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/state.py:569: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <app.models.user.User object at 0x71b01683af90>
+kwargs = {'company_id': 59, 'email': 'admin@teste.com', 'hashed_password': 'hashed', 'is_active': True, ...}
+cls_ = <class 'app.models.user.User'>, k = 'hashed_password'
+
+    def _declarative_constructor(self: Any, **kwargs: Any) -> None:
+        """A simple constructor that allows initialization from kwargs.
+    
+        Sets attributes on the constructed instance using the names and
+        values in ``kwargs``.
+    
+        Only keys that are present as
+        attributes of the instance's class are allowed. These could be,
+        for example, any mapped columns or relationships.
+        """
+        cls_ = type(self)
+        for k in kwargs:
+            if not hasattr(cls_, k):
+>               raise TypeError(
+                    "%r is an invalid keyword argument for %s" % (k, cls_.__name__)
+                )
+E               TypeError: 'hashed_password' is an invalid keyword argument for User
+
+/usr/local/lib/python3.11/site-packages/sqlalchemy/orm/decl_base.py:2177: TypeError
+=============================== warnings summary ===============================
+../usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854
+  /usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13
+    from crypt import crypt as _crypt
+
+../usr/local/lib/python3.11/site-packages/pythonjsonlogger/jsonlogger.py:11
+  /usr/local/lib/python3.11/site-packages/pythonjsonlogger/jsonlogger.py:11: DeprecationWarning: pythonjsonlogger.jsonlogger has been moved to pythonjsonlogger.json
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+ERROR tests/test_credit_validation_tdd.py::test_cash_sale_with_incomplete_customer
+ERROR tests/test_credit_validation_tdd.py::test_pix_sale_with_incomplete_customer
+ERROR tests/test_credit_validation_tdd.py::test_credit_sale_without_cpf_should_fail
+ERROR tests/test_credit_validation_tdd.py::test_credit_sale_without_phone_should_fail
+ERROR tests/test_credit_validation_tdd.py::test_credit_sale_without_address_should_fail
+ERROR tests/test_credit_validation_tdd.py::test_credit_sale_with_complete_customer_should_pass
+ERROR tests/test_credit_validation_tdd.py::test_credit_sale_missing_multiple_fields
+======================== 2 warnings, 7 errors in 0.92s =========================

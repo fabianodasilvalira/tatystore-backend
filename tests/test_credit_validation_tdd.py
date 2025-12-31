@@ -333,7 +333,6 @@ def test_credit_sale_with_complete_customer_should_pass(db_session, test_user, t
     """
     TDD: Venda a crediário deve ACEITAR cliente com todos os dados
     """
-    print(f"DEBUG: SaleCreate fields: {SaleCreate.model_fields.keys()}")
     sale_data = SaleCreate(
         customer_id=customer_complete.id,
         items=[

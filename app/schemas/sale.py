@@ -18,8 +18,6 @@ class SaleCreate(BaseModel):
     first_due_date: Optional[date] = None
     installments_count: Optional[int] = Field(default=None, ge=1, le=60)
     notes: Optional[str] = None
-    
-    model_config = ConfigDict(extra='forbid')
 
 
 class ProductInSaleItem(BaseModel):

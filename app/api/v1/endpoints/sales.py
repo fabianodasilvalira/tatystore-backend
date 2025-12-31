@@ -247,14 +247,13 @@ def create_sale(
                     amount = base_amount
                 
                 # MELHORIA #8: Data de vencimento personalizada
-                first_due = getattr(sale_data, 'first_due_date', None)
-                if first_due:
+                if sale_data.first_due_date:
                     # Se for a primeira parcela (i=0), usa a data exata
                     # Se for as seguintes, soma 30 dias * i a partir da primeira data
                     if i == 0:
-                        due_date = first_due
+                        due_date = sale_data.first_due_date
                     else:
-                        due_date = first_due + timedelta(days=30 * i)
+                        due_date = sale_data.first_due_date + timedelta(days=30 * i)
                 else:
                     # Comportamento padrão: 30 dias a partir de hoje
                     due_date = date.today() + timedelta(days=30 * (i + 1))
