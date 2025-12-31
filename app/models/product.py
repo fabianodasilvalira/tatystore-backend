@@ -19,7 +19,7 @@ class Product(Base):
     brand = Column(String(100))
     image_url = Column(String(500))
     
-    cost_price = Column(Float, nullable=False)
+    cost_price = Column(Float, nullable=True, default=0.0)
     sale_price = Column(Float, nullable=False)
     
     is_on_sale = Column(Boolean, default=False)

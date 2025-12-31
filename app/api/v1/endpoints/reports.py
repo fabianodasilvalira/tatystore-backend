@@ -227,22 +227,41 @@ def report_profit(
     
     total_revenue = sum(s.total_amount for s in sales)
     total_cost = 0
+    products_without_cost = set()  # Produtos sem preço de custo
     
     for sale in sales:
         for item in sale.items:
             # item.product.cost_price é o custo atual do produto
-            # Usamos isso porque é o único disponível, mas idealmente deveria ser armazenado no SaleItem
-            total_cost += float(item.product.cost_price) * item.quantity
+            cost_price = item.product.cost_price if item.product.cost_price is not None else 0.0
+            
+            # Registrar produtos sem preço de custo
+            if cost_price == 0.0 or item.product.cost_price is None:
+                products_without_cost.add((item.product.id, item.product.name))
+            
+            total_cost += float(cost_price) * item.quantity
 
     profit = total_revenue - total_cost
     margin = (profit / total_revenue * 100) if total_revenue > 0 else 0
+    
+    # Preparar mensagem de aviso se houver produtos sem custo
+    warning = None
+    if products_without_cost:
+        warning = {
+            "message": "Não é possível calcular o lucro com precisão. Alguns produtos vendidos não possuem preço de custo cadastrado. Para obter relatórios de lucro precisos, é necessário cadastrar o preço de compra de todos os produtos.",
+            "products_count": len(products_without_cost),
+            "products": [
+                {"id": prod_id, "name": prod_name}
+                for prod_id, prod_name in sorted(products_without_cost, key=lambda x: x[1])
+            ]
+        }
 
     return {
         "period": period,
         "total_revenue": total_revenue,
         "total_cost": total_cost,
         "profit": profit,
-        "margin_percentage": margin
+        "margin_percentage": margin,
+        "warning": warning
     }
 
 
@@ -601,6 +620,7 @@ def report_sales_summary(
     total_cost = 0.0
     sales_count = len(sales)
     sales_data = []
+    products_without_cost = set()  # Produtos sem preço de custo
 
     for sale in sales:
         # Somar receita e desconto
@@ -610,8 +630,13 @@ def report_sales_summary(
         # Calcular custo total usando custo do produto
         for item in sale.items:
             # Buscar o custo atual do produto
-            # NOTA: Idealmente deveria armazenar cost_price no SaleItem na criação da venda
-            total_cost += float(item.product.cost_price) * item.quantity
+            cost_price = item.product.cost_price if item.product.cost_price is not None else 0.0
+            
+            # Registrar produtos sem preço de custo
+            if cost_price == 0.0 or item.product.cost_price is None:
+                products_without_cost.add((item.product.id, item.product.name))
+            
+            total_cost += float(cost_price) * item.quantity
 
         # Adicionar venda ao array
         sales_data.append({
@@ -625,6 +650,18 @@ def report_sales_summary(
     margin_percentage = (profit / total_revenue * 100) if total_revenue > 0 else 0.0
     average_ticket = (total_revenue / sales_count) if sales_count > 0 else 0.0
     
+    # Preparar mensagem de aviso se houver produtos sem custo
+    warning = None
+    if products_without_cost:
+        warning = {
+            "message": "Não é possível calcular o lucro com precisão. Alguns produtos vendidos não possuem preço de custo cadastrado. Para obter relatórios de lucro precisos, é necessário cadastrar o preço de compra de todos os produtos.",
+            "products_count": len(products_without_cost),
+            "products": [
+                {"id": prod_id, "name": prod_name}
+                for prod_id, prod_name in sorted(products_without_cost, key=lambda x: x[1])
+            ]
+        }
+    
     return {
         "total_revenue": round(total_revenue, 2),
         "total_sales": sales_count,
@@ -633,5 +670,6 @@ def report_sales_summary(
         "total_cost": round(total_cost, 2),
         "profit": round(profit, 2),
         "margin_percentage": round(margin_percentage, 2),
-        "sales": sales_data
+        "sales": sales_data,
+        "warning": warning
     }

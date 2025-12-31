@@ -20,7 +20,7 @@ class ProductBase(BaseModel):
     barcode: Optional[str] = None
     brand: Optional[str] = None
     sale_price: float
-    cost_price: float
+    cost_price: Optional[float] = 0.0
     stock_quantity: int = Field(ge=0, default=0)
     min_stock: int = Field(ge=0, default=0)
     is_active: bool = True
@@ -58,7 +58,7 @@ class ProductOut(BaseModel):
     brand: Optional[str] = None
     image_url: Optional[str] = None
     sale_price: float
-    cost_price: float
+    cost_price: Optional[float] = None
     stock_quantity: int
     min_stock: int
     is_active: bool

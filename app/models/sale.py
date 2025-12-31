@@ -65,8 +65,9 @@ class Sale(Base):
         total_profit = 0.0
         for item in self.items:
             # unit_price é o preço pelo qual foi vendido (normal ou promocional)
-            # cost_price é o preço de custo do produto
-            item_profit = (item.unit_price - item.product.cost_price) * item.quantity
+            # cost_price é o preço de custo do produto (pode ser None ou 0.0)
+            cost_price = item.product.cost_price if item.product.cost_price is not None else 0.0
+            item_profit = (item.unit_price - cost_price) * item.quantity
             total_profit += item_profit
         return total_profit
 

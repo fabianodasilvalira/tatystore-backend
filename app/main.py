@@ -111,17 +111,11 @@ async def lifespan(app: FastAPI):
     try:
         app.scheduler = await setup_scheduler()
         
-        # LOGS DE DIAGNÓSTICO DE ROTAS (DEBUGGING PRODUCTION)
+        # Logs essenciais de inicialização
         logger.info("="*50)
-        logger.info("🚀 DIAGNÓSTICO DE ROTAS INICIADO 🚀")
         logger.info(f"Versão da API: {settings.VERSION}")
-        logger.info("Rotas Registradas:")
-        for route in app.routes:
-            if hasattr(route, "methods"):
-                methods = ", ".join(route.methods)
-                logger.info(f"📍 Rota: {methods} {route.path}")
+        logger.info(f"Total de rotas registradas: {len(app.routes)}")
         logger.info("="*50)
-
         logger.info("Aplicação iniciada com sucesso")
     except Exception as e:
         logger.error(f"Erro na startup: {e}")
@@ -154,7 +148,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-logger.info(f"CORS configurado para: {settings.BACKEND_CORS_ORIGINS}")
+# logger.info(f"CORS configurado para: {settings.BACKEND_CORS_ORIGINS}")
 
 # Servir uploads
 app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")

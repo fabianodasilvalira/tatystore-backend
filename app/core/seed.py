@@ -29,7 +29,7 @@ def ensure_platform_admin(db: Session):
             print("⚠️  ADMIN_EMAIL ou ADMIN_PASSWORD não configurados. Pulando criação de admin.")
             return
 
-        print(f"🔧 Verificando Administrador da Plataforma ({settings.ADMIN_EMAIL})...")
+        # print(f"🔧 Verificando Administrador da Plataforma ({settings.ADMIN_EMAIL})...")
         
         # 1. Buscar Role de Super Admin
         admin_role = db.query(Role).filter(Role.name == "Super Admin").first()
@@ -64,7 +64,7 @@ def ensure_platform_admin(db: Session):
                 print("🔄 Atualizando role do admin para Super Admin...")
                 admin_user.role_id = admin_role.id
                 db.commit()
-            print("✓ Administrador da Plataforma verificado.")
+            # print("✓ Administrador da Plataforma verificado.")
             
     except Exception as e:
         print(f"❌ Erro ao verificar admin da plataforma: {e}")
@@ -101,7 +101,7 @@ def seed_data(db: Session):
     try:
         existing_perms = db.query(Permission).first()
         if existing_perms:
-            print("ℹ️  Dados do sistema já foram inicializados anteriormente")
+            pass  # Dados já inicializados
             return
         
         print("🔧 Criando permissões e perfis...")

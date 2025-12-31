@@ -103,6 +103,10 @@ def search_products(
 
     query = db.query(Product).filter(Product.company_id == current_user.company_id)
 
+    # Filtrar apenas produtos ativos se solicitado
+    if active_only:
+        query = query.filter(Product.is_active == True)
+
     if category_id:
         query = query.filter(Product.category_id == category_id)
 
@@ -315,7 +319,7 @@ def get_products_on_sale(
 def list_products(
         skip: int = 0,
         limit: Optional[int] = None,
-        active_only: bool = False,
+        active_only: bool = True,  # Alterado para True - padrão é mostrar apenas ativos
         show_inactive: bool = False,
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
@@ -328,7 +332,7 @@ def list_products(
     **Isolamento:** Apenas produtos da mesma empresa
 
     **Parâmetros:**
-    - `active_only`: Se True, retorna apenas produtos ativos (padrão: False)
+    - `active_only`: Se True, retorna apenas produtos ativos (padrão: True)
     - `show_inactive`: Se True, retorna apenas produtos inativos (padrão: False)
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
@@ -708,7 +712,7 @@ def get_products_by_category(
         category_id: int,
         skip: int = 0,
         limit: Optional[int] = None,
-        active_only: bool = False,
+        active_only: bool = True,  # Alterado para True - padrão é mostrar apenas ativos
         current_user: User = Depends(get_current_user),
         db: Session = Depends(get_db)
 ):
@@ -722,7 +726,7 @@ def get_products_by_category(
     **Parâmetros:**
     - `skip`: Pular N registros (padrão: 0)
     - `limit`: Quantidade de registros (opcional, se não informado retorna todos)
-    - `active_only`: Se True, retorna apenas produtos ativos (padrão: False)
+    - `active_only`: Se True, retorna apenas produtos ativos (padrão: True)
     """
     query = db.query(Product).filter(
         Product.company_id == current_user.company_id,
