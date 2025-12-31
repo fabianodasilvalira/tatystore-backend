@@ -54,6 +54,16 @@ def create_sale(
 ):
     """Registrar Nova Venda com validação completa"""
     
+    # DEBUG
+    try:
+        print(f"DEBUG SALES: sale_data type: {type(sale_data)}")
+        print(f"DEBUG SALES: sale_data keys: {sale_data.model_dump().keys() if hasattr(sale_data, 'model_dump') else sale_data.__dict__.keys()}")
+        print(f"DEBUG SALES: has first_due_date? {hasattr(sale_data, 'first_due_date')}")
+        if hasattr(sale_data, 'first_due_date'):
+            print(f"DEBUG SALES: first_due_date value: {sale_data.first_due_date}")
+    except Exception as e:
+        print(f"DEBUG SALES EXCEPTION: {e}")
+
     try:
         # Validar cliente com lock
         customer = db.query(Customer).filter(
