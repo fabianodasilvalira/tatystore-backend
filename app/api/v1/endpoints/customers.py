@@ -219,8 +219,34 @@ async def update_customer(
             detail="Recurso não encontrado"
         )
     
-    # Atualizar campos
+    # Verificar se email ou CPF já existem em OUTRO cliente da empresa
     update_data = customer_data.model_dump(exclude_unset=True)
+    
+    if 'email' in update_data and update_data['email']:
+        existing_email = db.query(Customer).filter(
+            Customer.email == update_data['email'],
+            Customer.company_id == current_user.company_id,
+            Customer.id != customer_id  # Excluir o próprio cliente
+        ).first()
+        if existing_email:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Email já cadastrado para outro cliente nesta empresa"
+            )
+    
+    if 'cpf' in update_data and update_data['cpf']:
+        existing_cpf = db.query(Customer).filter(
+            Customer.cpf == update_data['cpf'],
+            Customer.company_id == current_user.company_id,
+            Customer.id != customer_id  # Excluir o próprio cliente
+        ).first()
+        if existing_cpf:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CPF já cadastrado para outro cliente nesta empresa"
+            )
+    
+    # Atualizar campos
     for field, value in update_data.items():
         setattr(customer, field, value)
     

@@ -13,7 +13,9 @@ class CustomerBase(BaseModel):
     phone: Optional[str] = None
     cpf: Optional[str] = None
     address: Optional[str] = None
-    
+
+
+class CustomerCreate(CustomerBase):
     @field_validator('cpf')
     @classmethod
     def validate_cpf(cls, v: Optional[str]) -> Optional[str]:
@@ -57,10 +59,6 @@ class CustomerBase(BaseModel):
         return cpf_digits
 
 
-class CustomerCreate(CustomerBase):
-    pass
-
-
 class CustomerUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=3, max_length=200)
     email: Optional[EmailStr] = None
@@ -68,6 +66,48 @@ class CustomerUpdate(BaseModel):
     cpf: Optional[str] = None
     address: Optional[str] = None
     is_active: Optional[bool] = None
+    
+    @field_validator('cpf')
+    @classmethod
+    def validate_cpf(cls, v: Optional[str]) -> Optional[str]:
+        """
+        Valida CPF segundo o algoritmo brasileiro.
+        CPF é opcional, mas se fornecido deve ser válido.
+        """
+        if v is None or v.strip() == '':
+            return None
+        
+        # Remove formatação (pontos, hífens, espaços)
+        cpf_digits = ''.join(filter(str.isdigit, v))
+        
+        # Deve ter exatamente 11 dígitos
+        if len(cpf_digits) != 11:
+            raise ValueError('CPF deve conter exatamente 11 dígitos')
+        
+        # Rejeitar CPFs com todos os dígitos iguais (ex: 111.111.111-11)
+        if cpf_digits == cpf_digits[0] * 11:
+            raise ValueError('CPF inválido')
+        
+        # Validar primeiro dígito verificador
+        sum_val = sum(int(cpf_digits[i]) * (10 - i) for i in range(9))
+        digit1 = 11 - (sum_val % 11)
+        if digit1 >= 10:
+            digit1 = 0
+        
+        if int(cpf_digits[9]) != digit1:
+            raise ValueError('CPF inválido')
+        
+        # Validar segundo dígito verificador
+        sum_val = sum(int(cpf_digits[i]) * (11 - i) for i in range(10))
+        digit2 = 11 - (sum_val % 11)
+        if digit2 >= 10:
+            digit2 = 0
+        
+        if int(cpf_digits[10]) != digit2:
+            raise ValueError('CPF inválido')
+        
+        # Retornar apenas os dígitos (sem formatação)
+        return cpf_digits
 
 
 class CustomerResponse(CustomerBase):
